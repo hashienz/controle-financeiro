@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,7 +28,7 @@ import com.example.myapplication.ui.theme.*
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Auth : Screen("auth", "Auth", Icons.Default.Info)
     object Dashboard : Screen("dashboard", "Início", Icons.Default.Home)
-    object Extrato : Screen("extrato", "Extrato", Icons.Default.List)
+    object Extrato : Screen("extrato", "Extrato", Icons.AutoMirrored.Filled.List)
     object Budget : Screen("budget", "Metas", Icons.Default.CheckCircle)
     object Reports : Screen("reports", "Gráficos", Icons.Default.Info)
     object TransactionForm : Screen("transaction_form", "Novo", Icons.Default.Add)

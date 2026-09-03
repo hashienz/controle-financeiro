@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.ui.Screen
+import com.example.myapplication.navigation.Screen
 import com.example.myapplication.ui.theme.*
 
 @Composable
