@@ -22,7 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.view.*
 import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.ui.theme.*
+import com.example.myapplication.theme.*
 
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {

@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.ui.theme.*
+import com.example.myapplication.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 

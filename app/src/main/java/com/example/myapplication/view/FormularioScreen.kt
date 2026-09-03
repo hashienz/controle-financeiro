@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.myapplication.model.CategoriaEntity
 import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.ui.theme.*
+import com.example.myapplication.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

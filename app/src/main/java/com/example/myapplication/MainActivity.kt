@@ -11,7 +11,7 @@ import com.example.myapplication.navigation.NavegacaoApp
 import com.example.myapplication.viewmodel.AppViewModel
 import com.example.myapplication.viewmodel.AppViewModelFactory
 import com.example.myapplication.localstorage.PreferenciasApp
-import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

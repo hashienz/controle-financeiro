@@ -24,7 +24,7 @@ import androidx.navigation.NavController
 import com.example.myapplication.model.TransacaoEntity
 import com.example.myapplication.viewmodel.AppViewModel
 import com.example.myapplication.navigation.Screen
-import com.example.myapplication.ui.theme.*
+import com.example.myapplication.theme.*
 import java.text.NumberFormat
 import java.util.*
 
