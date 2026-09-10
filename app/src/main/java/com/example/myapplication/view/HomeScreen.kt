@@ -20,17 +20,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import com.example.myapplication.model.TransacaoEntity
-import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.navigation.Screen
+import com.example.myapplication.model.Transacao
+import com.example.myapplication.navigation.Tela
 import com.example.myapplication.theme.*
+import com.example.myapplication.viewmodel.AppViewModel
 import java.text.NumberFormat
 import java.util.*
 
 @Composable
-fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
-    // Usando State Simples (Didático)
+fun HomeScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
     var showValues by remember { mutableStateOf(true) }
     
     val saldoEfetivado = viewModel.totalReceitasEfetivadas.doubleValue - viewModel.totalDespesasEfetivadas.doubleValue
@@ -40,7 +38,7 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
         containerColor = LumeBg,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.TransactionForm.route) },
+                onClick = { onNavegar(Tela.FORMULARIO) },
                 containerColor = LumeAccent,
                 contentColor = LumeBg,
                 shape = CircleShape
@@ -95,7 +93,8 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
                 )
             }
 
-            if (viewModel.recentTransacoes.isEmpty()) {
+            val recentList = viewModel.getRecentTransacoes()
+            if (recentList.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -111,7 +110,7 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
                     }
                 }
             } else {
-                items(viewModel.recentTransacoes) { transacao ->
+                items(recentList) { transacao ->
                     TransactionLumeItem(transacao, showValues)
                 }
             }
@@ -199,7 +198,7 @@ fun ResumoLumeItem(
 }
 
 @Composable
-fun TransactionLumeItem(transacao: TransacaoEntity, showValues: Boolean) {
+fun TransactionLumeItem(transacao: Transacao, showValues: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

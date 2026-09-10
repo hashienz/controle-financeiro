@@ -15,14 +15,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.model.CategoriaEntity
-import com.example.myapplication.viewmodel.AppViewModel
+import com.example.myapplication.model.Categoria
 import com.example.myapplication.theme.*
+import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
 fun GraficosScreen(viewModel: AppViewModel) {
-    // Preparar dados (Didático)
-    val categoriasComGasto = mutableListOf<Pair<CategoriaEntity, Double>>()
+    val categoriasComGasto = mutableListOf<Pair<Categoria, Double>>()
     var totalGasto = 0.0
 
     for (categoria in viewModel.allCategorias) {
@@ -33,7 +32,6 @@ fun GraficosScreen(viewModel: AppViewModel) {
         }
     }
 
-    // Ordenar do maior gasto para o menor
     categoriasComGasto.sortByDescending { it.second }
 
     Column(
@@ -53,7 +51,6 @@ fun GraficosScreen(viewModel: AppViewModel) {
         )
 
         if (totalGasto > 0) {
-            // Um card de resumo simples em vez de gráfico complexo
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

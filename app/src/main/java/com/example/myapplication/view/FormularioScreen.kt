@@ -18,20 +18,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import com.example.myapplication.model.CategoriaEntity
-import com.example.myapplication.viewmodel.AppViewModel
+import com.example.myapplication.model.Categoria
+import com.example.myapplication.navigation.Tela
 import com.example.myapplication.theme.*
+import com.example.myapplication.viewmodel.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
+fun FormularioScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
     var descricao by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("DESPESA") }
@@ -51,7 +50,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                     ) 
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { onNavegar(Tela.HOME) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
                             contentDescription = "Voltar",
@@ -84,7 +83,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                 )
             )
 
-            // Seletor de Tipo com Botões Simples (Didático)
+            // Seletor de Tipo
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { tipo = "RECEITA" },
@@ -168,7 +167,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                     val v = valor.toDoubleOrNull() ?: 0.0
                     if (v > 0 && selectedCategoriaId != null) {
                         viewModel.addTransacao(descricao, v, tipo, selectedCategoriaId!!, efetivado)
-                        navController.popBackStack()
+                        onNavegar(Tela.HOME)
                     }
                 },
                 modifier = Modifier
@@ -177,7 +176,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                     .padding(bottom = 8.dp),
                 enabled = valor.isNotEmpty() && selectedCategoriaId != null,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (tipo == "RECEITA") LumeAccent else LumeAccent,
+                    containerColor = LumeAccent,
                     contentColor = LumeBg
                 ),
                 shape = RoundedCornerShape(12.dp)
@@ -189,7 +188,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
 }
 
 @Composable
-fun CategoryGridItem(categoria: CategoriaEntity, isSelected: Boolean, onClick: () -> Unit) {
+fun CategoryGridItem(categoria: Categoria, isSelected: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))

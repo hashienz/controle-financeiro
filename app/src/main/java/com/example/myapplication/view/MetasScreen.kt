@@ -18,14 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.model.CategoriaEntity
-import com.example.myapplication.viewmodel.AppViewModel
+import com.example.myapplication.model.Categoria
 import com.example.myapplication.theme.*
+import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
 fun MetasScreen(viewModel: AppViewModel) {
     var showDialog by remember { mutableStateOf(false) }
-    var selectedCategoria by remember { mutableStateOf<CategoriaEntity?>(null) }
+    var selectedCategoria by remember { mutableStateOf<Categoria?>(null) }
     var novoLimite by remember { mutableStateOf("") }
 
     if (showDialog && selectedCategoria != null) {
@@ -99,9 +99,8 @@ fun MetasScreen(viewModel: AppViewModel) {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             items(viewModel.allCategorias) { categoria ->
-                // Cálculo de Gasto Direto (Didático)
                 val gasto = viewModel.getGastoDaCategoria(categoria.id)
-                MetasLumeItem(categoria, gasto) {
+                BudgetLumeItem(categoria, gasto) {
                     selectedCategoria = categoria
                     novoLimite = categoria.limiteMensal.toString()
                     showDialog = true
@@ -113,7 +112,7 @@ fun MetasScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-fun MetasLumeItem(categoria: CategoriaEntity, gasto: Double, onEdit: () -> Unit) {
+fun BudgetLumeItem(categoria: Categoria, gasto: Double, onEdit: () -> Unit) {
     val progress = if (categoria.limiteMensal > 0) gasto / categoria.limiteMensal else 0.0
     
     val color = when {

@@ -24,7 +24,7 @@ fun ExtratoScreen(viewModel: AppViewModel) {
     var searchText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("TODOS") }
 
-    // Lógica simples de filtragem (Didático)
+    // Lógica simples de filtragem
     val filteredTransacoes = viewModel.allTransacoes.filter {
         (it.descricao.contains(searchText, ignoreCase = true)) &&
         (selectedFilter == "TODOS" || it.tipo == selectedFilter)
@@ -52,8 +52,6 @@ fun ExtratoScreen(viewModel: AppViewModel) {
             ),
             shape = RoundedCornerShape(12.dp)
         )
-        
-        // Filtros usando Row e Botões simples em vez de Chips avançados
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -70,7 +68,6 @@ fun ExtratoScreen(viewModel: AppViewModel) {
                 Text("Nenhum lançamento encontrado.", color = LumeTextSecondary)
             }
         } else {
-            // LazyColumn clássico sem Sticky Headers (mais didático)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)

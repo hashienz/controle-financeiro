@@ -5,30 +5,25 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import com.example.myapplication.localstorage.PreferenciasApp
-import com.example.myapplication.model.CategoriaEntity
-import com.example.myapplication.model.TransacaoEntity
-import com.example.myapplication.repository.AppRepository
-import kotlinx.coroutines.launch
+import com.example.myapplication.model.Categoria
+import com.example.myapplication.model.Transacao
 
 class AppViewModel(
-    private val repository: AppRepository,
     private val prefs: PreferenciasApp
 ) : ViewModel() {
 
     var isUserLoggedIn = mutableStateOf(prefs.isLoggedIn())
         private set
 
-    var allTransacoes = mutableStateListOf<TransacaoEntity>()
+    // Listas em memória (Sem banco de dados)
+    var allTransacoes = mutableStateListOf<Transacao>()
         private set
 
-    var recentTransacoes = mutableStateListOf<TransacaoEntity>()
+    var allCategorias = mutableStateListOf<Categoria>()
         private set
 
-    var allCategorias = mutableStateListOf<CategoriaEntity>()
-        private set
-
+    // Totais calculados
     var totalReceitasEfetivadas = mutableDoubleStateOf(0.0)
         private set
     var totalReceitasPrevistas = mutableDoubleStateOf(0.0)
@@ -38,8 +33,12 @@ class AppViewModel(
     var totalDespesasPrevistas = mutableDoubleStateOf(0.0)
         private set
 
+    private var nextTransacaoId = 1L
+    private var nextCategoriaId = 1L
+
     init {
-        loadData()
+        // Inicializa as categorias padrão em memória
+        inicializarCategoriasPadrao()
     }
 
     fun login() {
@@ -52,35 +51,59 @@ class AppViewModel(
         isUserLoggedIn.value = false
     }
 
-    fun loadData() {
-        viewModelScope.launch {
-            val transacoesDoBanco = repository.getAllTransacoes()
-            val categoriasDoBanco = repository.getAllCategorias()
-
-            allTransacoes.clear()
-            allTransacoes.addAll(transacoesDoBanco)
-
-            recentTransacoes.clear()
-            recentTransacoes.addAll(repository.getRecentTransacoes())
-
-            allCategorias.clear()
-            allCategorias.addAll(categoriasDoBanco)
-
-            if (categoriasDoBanco.isEmpty()) {
-                initializeDefaultCategories()
-            }
-
-            calcularTotais(transacoesDoBanco)
+    private fun inicializarCategoriasPadrao() {
+        val padroes = listOf(
+            Triple("Alimentação", "🍔", "#FF5722"),
+            Triple("Transporte", "🚗", "#2196F3"),
+            Triple("Lazer", "🎮", "#4CAF50"),
+            Triple("Moradia", "🏠", "#9C27B0")
+        )
+        for (item in padroes) {
+            allCategorias.add(
+                Categoria(
+                    id = nextCategoriaId++,
+                    nome = item.first,
+                    iconeNome = item.second,
+                    corHex = item.third,
+                    limiteMensal = 500.0
+                )
+            )
         }
     }
 
-    private fun calcularTotais(transacoes: List<TransacaoEntity>) {
+    fun addTransacao(descricao: String, valor: Double, tipo: String, categoriaId: Long, efetivado: Boolean) {
+        val novaTransacao = Transacao(
+            id = nextTransacaoId++,
+            descricao = descricao,
+            valor = valor,
+            tipo = tipo,
+            dataInMillis = System.currentTimeMillis(),
+            categoriaId = categoriaId,
+            efetivado = efetivado
+        )
+        allTransacoes.add(0, novaTransacao) // Adiciona no início da lista
+        recalcularTotais()
+    }
+
+    fun deleteTransacao(transacao: Transacao) {
+        allTransacoes.remove(transacao)
+        recalcularTotais()
+    }
+
+    fun updateCategoriaLimite(categoria: Categoria, novoLimite: Double) {
+        val index = allCategorias.indexOfFirst { it.id == categoria.id }
+        if (index != -1) {
+            allCategorias[index] = categoria.copy(limiteMensal = novoLimite)
+        }
+    }
+
+    private fun recalcularTotais() {
         var recEfetivadas = 0.0
         var recPrevistas = 0.0
         var despEfetivadas = 0.0
         var despPrevistas = 0.0
 
-        for (t in transacoes) {
+        for (t in allTransacoes) {
             if (t.tipo == "RECEITA") {
                 if (t.efetivado) recEfetivadas += t.valor else recPrevistas += t.valor
             } else if (t.tipo == "DESPESA") {
@@ -94,52 +117,6 @@ class AppViewModel(
         totalDespesasPrevistas.doubleValue = despPrevistas
     }
 
-    private suspend fun initializeDefaultCategories() {
-        val defaults = listOf(
-            Triple("Alimentação", "🍔", "#FF5722"),
-            Triple("Transporte", "🚗", "#2196F3"),
-            Triple("Lazer", "🎮", "#4CAF50")
-        )
-        for (item in defaults) {
-            repository.insertCategoria(
-                CategoriaEntity(nome = item.first, iconeNome = item.second, corHex = item.third, limiteMensal = 500.0)
-            )
-        }
-        val novasCategorias = repository.getAllCategorias()
-        allCategorias.clear()
-        allCategorias.addAll(novasCategorias)
-    }
-
-    fun addTransacao(descricao: String, valor: Double, tipo: String, categoriaId: Long, efetivado: Boolean) {
-        viewModelScope.launch {
-            val novaTransacao = TransacaoEntity(
-                descricao = descricao,
-                valor = valor,
-                tipo = tipo,
-                dataInMillis = System.currentTimeMillis(),
-                categoriaId = categoriaId,
-                efetivado = efetivado
-            )
-            repository.insertTransacao(novaTransacao)
-            loadData() 
-        }
-    }
-
-    fun deleteTransacao(transacao: TransacaoEntity) {
-        viewModelScope.launch {
-            repository.deleteTransacao(transacao)
-            loadData()
-        }
-    }
-
-    fun updateCategoriaLimite(categoria: CategoriaEntity, novoLimite: Double) {
-        viewModelScope.launch {
-            val categoriaAtualizada = categoria.copy(limiteMensal = novoLimite)
-            repository.updateCategoria(categoriaAtualizada)
-            loadData()
-        }
-    }
-
     fun getGastoDaCategoria(categoriaId: Long): Double {
         var gastoTotal = 0.0
         for (t in allTransacoes) {
@@ -149,16 +126,19 @@ class AppViewModel(
         }
         return gastoTotal
     }
+
+    fun getRecentTransacoes(): List<Transacao> {
+        return allTransacoes.take(5)
+    }
 }
 
 class AppViewModelFactory(
-    private val repository: AppRepository,
     private val prefs: PreferenciasApp
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return AppViewModel(repository, prefs) as T
+            return AppViewModel(prefs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
