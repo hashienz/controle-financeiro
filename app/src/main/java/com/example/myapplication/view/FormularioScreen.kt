@@ -23,14 +23,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.myapplication.model.Categoria
-import com.example.myapplication.navigation.Tela
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FormularioScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
+fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
     var descricao by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("DESPESA") }
@@ -50,7 +50,7 @@ fun FormularioScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
                     ) 
                 },
                 navigationIcon = {
-                    IconButton(onClick = { onNavegar(Tela.HOME) }) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
                             contentDescription = "Voltar",
@@ -167,7 +167,7 @@ fun FormularioScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
                     val v = valor.toDoubleOrNull() ?: 0.0
                     if (v > 0 && selectedCategoriaId != null) {
                         viewModel.addTransacao(descricao, v, tipo, selectedCategoriaId!!, efetivado)
-                        onNavegar(Tela.HOME)
+                        navController.popBackStack()
                     }
                 },
                 modifier = Modifier

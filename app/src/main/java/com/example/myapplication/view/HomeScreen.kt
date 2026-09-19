@@ -20,15 +20,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.myapplication.model.Transacao
-import com.example.myapplication.navigation.Tela
+import com.example.myapplication.navigation.Screen
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 import java.text.NumberFormat
 import java.util.*
 
 @Composable
-fun HomeScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
+fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
     var showValues by remember { mutableStateOf(true) }
     
     val saldoEfetivado = viewModel.totalReceitasEfetivadas.doubleValue - viewModel.totalDespesasEfetivadas.doubleValue
@@ -38,7 +39,7 @@ fun HomeScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
         containerColor = LumeBg,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { onNavegar(Tela.FORMULARIO) },
+                onClick = { navController.navigate(Screen.TransactionForm.route) },
                 containerColor = LumeAccent,
                 contentColor = LumeBg,
                 shape = CircleShape

@@ -10,64 +10,77 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.theme.LumeBg
 import com.example.myapplication.theme.LumeSurface
 import com.example.myapplication.view.*
 import com.example.myapplication.viewmodel.AppViewModel
 
-enum class Tela(val titulo: String, val icone: ImageVector) {
-    LOGIN("Auth", Icons.Default.Info),
-    HOME("Início", Icons.Default.Home),
-    EXTRATO("Extrato", Icons.Default.List),
-    FORMULARIO("Novo", Icons.Default.Add),
-    METAS("Metas", Icons.Default.CheckCircle),
-    GRAFICOS("Gráficos", Icons.Default.Info)
+sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
+    object Auth : Screen("auth", "Auth", Icons.Default.Info)
+    object Dashboard : Screen("dashboard", "Início", Icons.Default.Home)
+    object Extrato : Screen("extrato", "Extrato", Icons.Default.List)
+    object Budget : Screen("budget", "Metas", Icons.Default.CheckCircle)
+    object Reports : Screen("reports", "Gráficos", Icons.Default.Info)
+    object TransactionForm : Screen("transaction_form", "Novo", Icons.Default.Add)
 }
 
 @Composable
 fun NavegacaoApp(viewModel: AppViewModel) {
-    var telaAtual by remember { 
-        mutableStateOf(if (viewModel.isUserLoggedIn.value) Tela.HOME else Tela.LOGIN) 
-    }
-
-    val onNavegar: (Tela) -> Unit = { novaTela ->
-        telaAtual = novaTela
-    }
-
-    if (telaAtual == Tela.LOGIN) {
-        LoginScreen(viewModel = viewModel, onNavegar = onNavegar)
-    } else if (telaAtual == Tela.FORMULARIO) {
-        FormularioScreen(viewModel = viewModel, onNavegar = onNavegar)
-    } else {
-        MainScaffold(
-            telaAtual = telaAtual,
-            onNavegar = onNavegar
-        ) {
-            when (telaAtual) {
-                Tela.HOME -> HomeScreen(viewModel = viewModel, onNavegar = onNavegar)
-                Tela.EXTRATO -> ExtratoScreen(viewModel = viewModel)
-                Tela.METAS -> MetasScreen(viewModel = viewModel)
-                Tela.GRAFICOS -> GraficosScreen(viewModel = viewModel)
-                else -> HomeScreen(viewModel = viewModel, onNavegar = onNavegar)
+    val navController = rememberNavController()
+    
+    NavHost(
+        navController = navController,
+        startDestination = if (viewModel.isUserLoggedIn.value) Screen.Dashboard.route else Screen.Auth.route,
+        modifier = Modifier.background(LumeBg)
+    ) {
+        composable(Screen.Auth.route) {
+            LoginScreen(viewModel = viewModel, navController = navController)
+        }
+        composable(Screen.Dashboard.route) {
+            MainScaffold(navController = navController) {
+                HomeScreen(viewModel = viewModel, navController = navController)
             }
+        }
+        composable(Screen.Extrato.route) {
+            MainScaffold(navController = navController) {
+                ExtratoScreen(viewModel = viewModel)
+            }
+        }
+        composable(Screen.Budget.route) {
+            MainScaffold(navController = navController) {
+                MetasScreen(viewModel = viewModel)
+            }
+        }
+        composable(Screen.Reports.route) {
+            MainScaffold(navController = navController) {
+                GraficosScreen(viewModel = viewModel)
+            }
+        }
+        composable(Screen.TransactionForm.route) {
+            FormularioScreen(viewModel = viewModel, navController = navController)
         }
     }
 }
 
 @Composable
 fun MainScaffold(
-    telaAtual: Tela,
-    onNavegar: (Tela) -> Unit,
+    navController: NavHostController,
     content: @Composable () -> Unit
 ) {
     Scaffold(
         containerColor = LumeBg,
         bottomBar = {
-            BottomNavigationBar(telaAtual = telaAtual, onNavegar = onNavegar)
+            BottomNavigationBar(navController = navController)
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
@@ -77,25 +90,25 @@ fun MainScaffold(
 }
 
 @Composable
-fun BottomNavigationBar(
-    telaAtual: Tela,
-    onNavegar: (Tela) -> Unit
-) {
+fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
-        Tela.HOME,
-        Tela.EXTRATO,
-        Tela.METAS,
-        Tela.GRAFICOS
+        Screen.Dashboard,
+        Screen.Extrato,
+        Screen.Budget,
+        Screen.Reports
     )
     NavigationBar(
         containerColor = LumeBg,
         tonalElevation = 0.dp
     ) {
-        items.forEach { tela ->
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+        
+        items.forEach { screen ->
             NavigationBarItem(
-                icon = { Icon(tela.icone, contentDescription = tela.titulo) },
-                label = { Text(tela.titulo) },
-                selected = telaAtual == tela,
+                icon = { Icon(screen.icon, contentDescription = screen.title) },
+                label = { Text(screen.title) },
+                selected = currentRoute == screen.route,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -103,7 +116,17 @@ fun BottomNavigationBar(
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     indicatorColor = LumeSurface
                 ),
-                onClick = { onNavegar(tela) }
+                onClick = {
+                    if (currentRoute != screen.route) {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
             )
         }
     }

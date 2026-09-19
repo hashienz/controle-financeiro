@@ -11,12 +11,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.navigation.Tela
+import androidx.navigation.NavController
+import com.example.myapplication.navigation.Screen
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
-fun LoginScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
+fun LoginScreen(viewModel: AppViewModel, navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -74,7 +75,11 @@ fun LoginScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
         Button(
             onClick = { 
                 viewModel.login()
-                onNavegar(Tela.HOME)
+                navController.navigate(Screen.Dashboard.route) {
+                    popUpTo(Screen.Auth.route) {
+                        inclusive = true
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -88,7 +93,11 @@ fun LoginScreen(viewModel: AppViewModel, onNavegar: (Tela) -> Unit) {
         TextButton(
             onClick = { 
                 viewModel.login()
-                onNavegar(Tela.HOME)
+                navController.navigate(Screen.Dashboard.route) {
+                    popUpTo(Screen.Auth.route) {
+                        inclusive = true
+                    }
+                }
             },
             modifier = Modifier.padding(top = 16.dp)
         ) {
