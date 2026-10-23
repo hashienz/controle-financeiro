@@ -1,145 +1,269 @@
 package com.example.myapplication.viewmodel
 
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableStateListOf
+import android.app.Application
+import android.util.Patterns
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import com.example.myapplication.localstorage.PreferenciasApp
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.AulaRepository
+import com.example.myapplication.data.Usuario
 import com.example.myapplication.model.Categoria
 import com.example.myapplication.model.Transacao
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-class AppViewModel(
-    private val prefs: PreferenciasApp
-) : ViewModel() {
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = AulaRepository(application)
 
-    var isUserLoggedIn = mutableStateOf(prefs.isLoggedIn())
+    var inicializando by mutableStateOf(true)
         private set
-
-    // Listas em memória (Sem banco de dados)
-    var allTransacoes = mutableStateListOf<Transacao>()
+    var carregando by mutableStateOf(false)
         private set
-
-    var allCategorias = mutableStateListOf<Categoria>()
+    var mensagem by mutableStateOf<String?>(null)
         private set
-
-    // Totais calculados
-    var totalReceitasEfetivadas = mutableDoubleStateOf(0.0)
+    var usuario by mutableStateOf<Usuario?>(null)
         private set
-    var totalReceitasPrevistas = mutableDoubleStateOf(0.0)
+    var allTransacoes by mutableStateOf<List<Transacao>>(emptyList())
         private set
-    var totalDespesasEfetivadas = mutableDoubleStateOf(0.0)
+    var allCategorias by mutableStateOf(categoriasPadrao())
         private set
-    var totalDespesasPrevistas = mutableDoubleStateOf(0.0)
-        private set
-
-    private var nextTransacaoId = 1L
-    private var nextCategoriaId = 1L
 
     init {
-        // Inicializa as categorias padrão em memória
-        inicializarCategoriasPadrao()
-    }
-
-    fun login() {
-        prefs.setLoggedIn(true)
-        isUserLoggedIn.value = true
-    }
-
-    fun logout() {
-        prefs.setLoggedIn(false)
-        isUserLoggedIn.value = false
-    }
-
-    private fun inicializarCategoriasPadrao() {
-        val padroes = listOf(
-            Triple("Alimentação", "🍔", "#FF5722"),
-            Triple("Transporte", "🚗", "#2196F3"),
-            Triple("Lazer", "🎮", "#4CAF50"),
-            Triple("Moradia", "🏠", "#9C27B0")
-        )
-        for (item in padroes) {
-            allCategorias.add(
-                Categoria(
-                    id = nextCategoriaId++,
-                    nome = item.first,
-                    iconeNome = item.second,
-                    corHex = item.third,
-                    limiteMensal = 500.0
-                )
-            )
+        viewModelScope.launch {
+            try {
+                val sessao = withContext(Dispatchers.IO) { repository.sessaoAtual() }
+                if (sessao != null) {
+                    carregarDados(sessao.id)
+                    usuario = sessao
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível carregar a sessão."
+            } finally {
+                inicializando = false
+            }
         }
     }
 
-    fun addTransacao(descricao: String, valor: Double, tipo: String, categoriaId: Long, efetivado: Boolean) {
-        val novaTransacao = Transacao(
-            id = nextTransacaoId++,
-            descricao = descricao,
-            valor = valor,
-            tipo = tipo,
-            dataInMillis = System.currentTimeMillis(),
-            categoriaId = categoriaId,
-            efetivado = efetivado
-        )
-        allTransacoes.add(0, novaTransacao) // Adiciona no início da lista
-        recalcularTotais()
+    fun clearMensagem() {
+        mensagem = null
     }
 
-    fun deleteTransacao(transacao: Transacao) {
-        allTransacoes.remove(transacao)
-        recalcularTotais()
+    fun login(email: String, senha: String, onSuccess: () -> Unit) {
+        if (carregando || usuario != null) return
+        val emailLimpo = email.trim()
+        if (!Patterns.EMAIL_ADDRESS.matcher(emailLimpo).matches() || senha.isEmpty()) {
+            mensagem = "Informe um e-mail válido e a senha."
+            return
+        }
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                val encontrado = withContext(Dispatchers.IO) {
+                    repository.entrar(emailLimpo, senha)
+                }
+                if (encontrado == null) {
+                    mensagem = "E-mail ou senha inválidos."
+                } else {
+                    carregarDados(encontrado.id)
+                    usuario = encontrado
+                    onSuccess()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível entrar. Tente novamente."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
+    fun cadastrar(nome: String, email: String, senha: String, onSuccess: () -> Unit) {
+        if (carregando || usuario != null) return
+        val nomeLimpo = nome.trim()
+        val emailLimpo = email.trim()
+        mensagem = when {
+            nomeLimpo.length !in 3..100 -> "O nome deve ter entre 3 e 100 caracteres."
+            !Patterns.EMAIL_ADDRESS.matcher(emailLimpo).matches() -> "Informe um e-mail válido."
+            senha.length !in 8..128 -> "A senha deve ter entre 8 e 128 caracteres."
+            else -> null
+        }
+        if (mensagem != null) return
+        carregando = true
+        viewModelScope.launch {
+            try {
+                val novoUsuario = withContext(Dispatchers.IO) {
+                    repository.cadastrar(nomeLimpo, emailLimpo, senha)
+                }
+                if (novoUsuario == null) {
+                    mensagem = "Este e-mail já está cadastrado."
+                } else {
+                    carregarDados(novoUsuario.id)
+                    usuario = novoUsuario
+                    onSuccess()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível criar a conta. Tente novamente."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
+    fun sair(onSuccess: () -> Unit) {
+        val atual = usuario ?: return
+        if (carregando) return
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { repository.sair(atual.id) }
+                usuario = null
+                allTransacoes = emptyList()
+                allCategorias = categoriasPadrao()
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível sair. Tente novamente."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
+    fun addTransacao(
+        descricao: String,
+        valor: Double,
+        tipo: String,
+        categoriaId: Long,
+        efetivado: Boolean,
+        onSuccess: () -> Unit
+    ) {
+        val atual = usuario ?: return
+        if (carregando) return
+        if (!valor.isFinite() || valor <= 0.0 ||
+            (tipo != "RECEITA" && tipo != "DESPESA") ||
+            allCategorias.none { it.id == categoriaId }
+        ) {
+            mensagem = "Confira o valor, tipo e categoria do lançamento."
+            return
+        }
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                val transacoes = withContext(Dispatchers.IO) {
+                    repository.inserirTransacao(
+                        atual.id, descricao, valor, tipo, categoriaId, efetivado
+                    )
+                    repository.listarTransacoes(atual.id)
+                }
+                allTransacoes = transacoes
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível salvar o lançamento."
+            } finally {
+                carregando = false
+            }
+        }
     }
 
     fun updateCategoriaLimite(categoria: Categoria, novoLimite: Double) {
-        val index = allCategorias.indexOfFirst { it.id == categoria.id }
-        if (index != -1) {
-            allCategorias[index] = categoria.copy(limiteMensal = novoLimite)
+        val atual = usuario ?: return
+        if (carregando) return
+        if (!novoLimite.isFinite() || novoLimite < 0.0 ||
+            allCategorias.none { it.id == categoria.id }
+        ) {
+            mensagem = "Informe um limite válido."
+            return
+        }
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.salvarLimite(atual.id, categoria.id, novoLimite)
+                }
+                allCategorias = allCategorias.map {
+                    if (it.id == categoria.id) it.copy(limiteMensal = novoLimite) else it
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível salvar o limite."
+            } finally {
+                carregando = false
+            }
         }
     }
 
-    private fun recalcularTotais() {
-        var recEfetivadas = 0.0
-        var recPrevistas = 0.0
-        var despEfetivadas = 0.0
-        var despPrevistas = 0.0
+    val totalReceitasEfetivadas: Double get() = totalPara("RECEITA", true)
+    val totalReceitasPrevistas: Double get() = totalPara("RECEITA", false)
+    val totalDespesasEfetivadas: Double get() = totalPara("DESPESA", true)
+    val totalDespesasPrevistas: Double get() = totalPara("DESPESA", false)
 
-        for (t in allTransacoes) {
-            if (t.tipo == "RECEITA") {
-                if (t.efetivado) recEfetivadas += t.valor else recPrevistas += t.valor
-            } else if (t.tipo == "DESPESA") {
-                if (t.efetivado) despEfetivadas += t.valor else despPrevistas += t.valor
+    private fun totalPara(tipo: String, efetivado: Boolean): Double {
+        var total = 0.0
+        for (transacao in allTransacoes) {
+            if (transacao.tipo == tipo && transacao.efetivado == efetivado) {
+                total += transacao.valor
             }
         }
-
-        totalReceitasEfetivadas.doubleValue = recEfetivadas
-        totalReceitasPrevistas.doubleValue = recPrevistas
-        totalDespesasEfetivadas.doubleValue = despEfetivadas
-        totalDespesasPrevistas.doubleValue = despPrevistas
+        return total
     }
 
     fun getGastoDaCategoria(categoriaId: Long): Double {
-        var gastoTotal = 0.0
-        for (t in allTransacoes) {
-            if (t.categoriaId == categoriaId && t.tipo == "DESPESA") {
-                gastoTotal += t.valor
+        var total = 0.0
+        val formatoMes = SimpleDateFormat("yyyyMM", Locale.ROOT)
+        val mesAtual = formatoMes.format(Date())
+        for (transacao in allTransacoes) {
+            if (transacao.categoriaId == categoriaId &&
+                transacao.tipo == "DESPESA" &&
+                formatoMes.format(Date(transacao.dataInMillis)) == mesAtual
+            ) {
+                total += transacao.valor
             }
         }
-        return gastoTotal
+        return total
     }
 
-    fun getRecentTransacoes(): List<Transacao> {
-        return allTransacoes.take(5)
-    }
-}
+    fun getRecentTransacoes(): List<Transacao> = allTransacoes.take(5)
 
-class AppViewModelFactory(
-    private val prefs: PreferenciasApp
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return AppViewModel(prefs) as T
+    private suspend fun carregarDados(usuarioId: Long) {
+        val transacoes = withContext(Dispatchers.IO) {
+            repository.listarTransacoes(usuarioId)
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        val categorias = withContext(Dispatchers.IO) {
+            categoriasPadrao().map { categoria ->
+                categoria.copy(
+                    limiteMensal = repository.limiteAtual(usuarioId, categoria.id)
+                        ?: categoria.limiteMensal
+                )
+            }
+        }
+        allTransacoes = transacoes
+        allCategorias = categorias
     }
+
+    private fun categoriasPadrao(): List<Categoria> = listOf(
+        Categoria(1, "Alimentação", "🍔", "#FF5722", 500.0),
+        Categoria(2, "Transporte", "🚗", "#2196F3", 500.0),
+        Categoria(3, "Lazer", "🎮", "#4CAF50", 500.0),
+        Categoria(4, "Moradia", "🏠", "#9C27B0", 500.0)
+    )
 }

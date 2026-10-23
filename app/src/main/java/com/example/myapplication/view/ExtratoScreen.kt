@@ -1,108 +1,82 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.myapplication.viewmodel.AppViewModel
-import com.example.myapplication.theme.*
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ExtratoScreen(viewModel: AppViewModel) {
-    var searchText by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("TODOS") }
+    var pesquisa by remember { mutableStateOf("") }
+    var filtro by remember { mutableStateOf("TODOS") }
+    var indice by remember { mutableStateOf(0) }
 
-    // Lógica simples de filtragem
-    val filteredTransacoes = viewModel.allTransacoes.filter {
-        (it.descricao.contains(searchText, ignoreCase = true)) &&
-        (selectedFilter == "TODOS" || it.tipo == selectedFilter)
+    val transacoes = viewModel.allTransacoes.filter {
+        it.descricao.contains(pesquisa, ignoreCase = true) &&
+            (filtro == "TODOS" || it.tipo == filtro)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LumeBg)
-            .padding(horizontal = 20.dp)
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
-        
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("EXTRATO", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
-            value = searchText,
-            onValueChange = { searchText = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Pesquisar transação...", color = LumeTextSecondary) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = LumeTextSecondary) },
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = LumeBorder,
-                focusedBorderColor = LumeAccent,
-                unfocusedContainerColor = LumeSurface,
-                focusedContainerColor = LumeSurface
-            ),
-            shape = RoundedCornerShape(12.dp)
+            value = pesquisa,
+            onValueChange = {
+                pesquisa = it
+                indice = 0
+            },
+            label = { Text("Pesquisar transação") },
+            modifier = Modifier.fillMaxWidth()
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterButton("Todos", selectedFilter == "TODOS") { selectedFilter = "TODOS" }
-            FilterButton("Receitas", selectedFilter == "RECEITA") { selectedFilter = "RECEITA" }
-            FilterButton("Despesas", selectedFilter == "DESPESA") { selectedFilter = "DESPESA" }
-        }
+        TextButton(onClick = {
+            filtro = "TODOS"
+            indice = 0
+        }) { Text(if (filtro == "TODOS") "Todos ✓" else "Todos") }
+        TextButton(onClick = {
+            filtro = "RECEITA"
+            indice = 0
+        }) { Text(if (filtro == "RECEITA") "Receitas ✓" else "Receitas") }
+        TextButton(onClick = {
+            filtro = "DESPESA"
+            indice = 0
+        }) { Text(if (filtro == "DESPESA") "Despesas ✓" else "Despesas") }
 
-        if (filteredTransacoes.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Nenhum lançamento encontrado.", color = LumeTextSecondary)
-            }
+        Spacer(modifier = Modifier.height(8.dp))
+        if (transacoes.isEmpty()) {
+            Text("Nenhum lançamento encontrado.")
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredTransacoes) { transacao ->
-                    Column {
-                        Text(
-                            text = formatDate(transacao.dataInMillis),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = LumeTextSecondary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        TransactionLumeItem(transacao, showValues = true)
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(80.dp)) }
+            val indiceAtual = if (indice in transacoes.indices) indice else 0
+            val transacao = transacoes[indiceAtual]
+            Text("Lançamento " + (indiceAtual + 1) + " de " + transacoes.size)
+            Text(formatDate(transacao.dataInMillis))
+            Text(transacao.descricao)
+            Text(if (transacao.tipo == "RECEITA") "Receita" else "Despesa")
+            Text(if (transacao.efetivado) "Efetivado" else "Pendente")
+            Text(formatCurrency(transacao.valor))
+            if (indiceAtual > 0) {
+                TextButton(onClick = { indice = indiceAtual - 1 }) { Text("Anterior") }
+            }
+            if (indiceAtual < transacoes.lastIndex) {
+                TextButton(onClick = { indice = indiceAtual + 1 }) { Text("Próximo") }
             }
         }
-    }
-}
-
-@Composable
-fun RowScope.FilterButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.weight(1f),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) LumeAccent else LumeSurface,
-            contentColor = if (isSelected) LumeBg else LumeTextSecondary
-        ),
-        shape = RoundedCornerShape(8.dp),
-        contentPadding = PaddingValues(0.dp)
-    ) {
-        Text(label, fontSize = 12.sp)
     }
 }
 

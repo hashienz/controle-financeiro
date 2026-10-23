@@ -1,111 +1,89 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import com.example.myapplication.navigation.Screen
-import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
-fun LoginScreen(viewModel: AppViewModel, navController: NavController) {
+fun LoginScreen(
+    viewModel: AppViewModel,
+    loginSucesso: () -> Unit,
+    irCadastro: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var senha by remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LumeBg)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "LUME",
-            color = LumeAccent,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 4.sp
-        )
-        Text(
-            text = "Sua vida financeira, simplificada.",
-            color = LumeTextSecondary,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(top = 8.dp, bottom = 48.dp)
-        )
+        Text("LUME", style = MaterialTheme.typography.headlineLarge)
+        Text("Sua vida financeira, simplificada.")
+        Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                viewModel.clearMensagem()
+            },
             label = { Text("E-mail") },
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = LumeBorder,
-                focusedBorderColor = LumeAccent
-            ),
-            shape = RoundedCornerShape(12.dp)
+            enabled = !viewModel.carregando
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = senha,
+            onValueChange = {
+                senha = it
+                viewModel.clearMensagem()
+            },
             label = { Text("Senha") },
-            modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = LumeBorder,
-                focusedBorderColor = LumeAccent
-            ),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !viewModel.carregando
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = { 
-                viewModel.login()
-                navController.navigate(Screen.Dashboard.route) {
-                    popUpTo(Screen.Auth.route) {
-                        inclusive = true
-                    }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = LumeAccent),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Entrar", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = LumeBg)
+        viewModel.mensagem?.let { mensagem ->
+            Spacer(Modifier.height(16.dp))
+            Text(mensagem, color = MaterialTheme.colorScheme.error)
         }
-
-        TextButton(
-            onClick = { 
-                viewModel.login()
-                navController.navigate(Screen.Dashboard.route) {
-                    popUpTo(Screen.Auth.route) {
-                        inclusive = true
-                    }
-                }
-            },
-            modifier = Modifier.padding(top = 16.dp)
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = { viewModel.login(email, senha, loginSucesso) },
+            enabled = !viewModel.carregando && email.isNotBlank() && senha.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                "Continuar como Convidado",
-                color = LumeTextSecondary,
-                fontWeight = FontWeight.Medium
-            )
+            Text(if (viewModel.carregando) "Entrando..." else "Entrar")
+        }
+        TextButton(
+            onClick = {
+                viewModel.clearMensagem()
+                irCadastro()
+            },
+            enabled = !viewModel.carregando
+        ) {
+            Text("Criar conta")
         }
     }
 }

@@ -1,26 +1,26 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.myapplication.model.Categoria
-import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
 fun GraficosScreen(viewModel: AppViewModel) {
+    var indice by remember { mutableStateOf(0) }
     val categoriasComGasto = mutableListOf<Pair<Categoria, Double>>()
     var totalGasto = 0.0
 
@@ -31,87 +31,33 @@ fun GraficosScreen(viewModel: AppViewModel) {
             totalGasto += gasto
         }
     }
-
     categoriasComGasto.sortByDescending { it.second }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LumeBg)
-            .padding(horizontal = 20.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("DISTRIBUIÇÃO DE DESPESAS", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "DISTRIBUIÇÃO DE DESPESAS",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = LumeTextSecondary,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
 
-        if (totalGasto > 0) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(LumeSurface)
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("TOTAL GASTO ESTE MÊS", style = MaterialTheme.typography.labelSmall, color = LumeTextSecondary)
-                Text(
-                    formatCurrency(totalGasto),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = LumeError,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(categoriasComGasto) { (categoria, gasto) ->
-                    LumeReportLegendItem(categoria.nome, gasto, totalGasto, categoria.corHex)
-                }
-                item { Spacer(modifier = Modifier.height(80.dp)) }
-            }
+        if (categoriasComGasto.isEmpty()) {
+            Text("Sem despesas para exibir.")
         } else {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Sem despesas para exibir.", color = LumeTextSecondary)
-            }
-        }
-    }
-}
+            val indiceAtual = if (indice in categoriasComGasto.indices) indice else 0
+            val item = categoriasComGasto[indiceAtual]
+            val percentual = (item.second / totalGasto * 100).toInt()
 
-@Composable
-fun LumeReportLegendItem(label: String, valor: Double, total: Double, colorHex: String) {
-    val percent = (valor / total * 100).toInt()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LumeSurface)
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(
-                        try { Color(android.graphics.Color.parseColor(colorHex)) } catch (e: Exception) { LumeAccent }
-                    )
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = LumeTextPrimary, fontWeight = FontWeight.Bold)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(formatCurrency(valor), fontWeight = FontWeight.Bold, color = LumeTextPrimary)
-            Text("$percent%", style = MaterialTheme.typography.labelSmall, color = LumeTextSecondary)
+            Text("Total de despesas: " + formatCurrency(totalGasto))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Categoria " + (indiceAtual + 1) + " de " + categoriasComGasto.size)
+            Text(item.first.nome)
+            Text("Gasto: " + formatCurrency(item.second))
+            Text("Participação: " + percentual + "%")
+
+            Spacer(modifier = Modifier.height(12.dp))
+            if (indiceAtual > 0) {
+                TextButton(onClick = { indice = indiceAtual - 1 }) { Text("Anterior") }
+            }
+            if (indiceAtual < categoriasComGasto.lastIndex) {
+                TextButton(onClick = { indice = indiceAtual + 1 }) { Text("Próximo") }
+            }
         }
     }
 }

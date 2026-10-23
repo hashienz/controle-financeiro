@@ -1,171 +1,112 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.myapplication.model.Categoria
-import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
 fun MetasScreen(viewModel: AppViewModel) {
-    var showDialog by remember { mutableStateOf(false) }
-    var selectedCategoria by remember { mutableStateOf<Categoria?>(null) }
+    var indice by remember { mutableStateOf(0) }
+    var editando by remember { mutableStateOf(false) }
     var novoLimite by remember { mutableStateOf("") }
+    var erro by remember { mutableStateOf<String?>(null) }
+    val categorias = viewModel.allCategorias
 
-    if (showDialog && selectedCategoria != null) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            containerColor = LumeSurface,
-            title = { 
-                Text(
-                    "AJUSTAR META", 
-                    color = LumeTextPrimary, 
-                    fontWeight = FontWeight.Bold, 
-                    fontSize = 18.sp 
-                ) 
-            },
-            text = {
-                Column {
-                    Text(
-                        selectedCategoria?.nome ?: "", 
-                        color = LumeAccent, 
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    OutlinedTextField(
-                        value = novoLimite,
-                        onValueChange = { novoLimite = it },
-                        label = { Text("Limite Mensal (R$)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = LumeBorder,
-                            focusedBorderColor = LumeAccent
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val limite = novoLimite.toDoubleOrNull() ?: 0.0
-                        viewModel.updateCategoriaLimite(selectedCategoria!!, limite)
-                        showDialog = false
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("ORÇAMENTOS E METAS", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (categorias.isEmpty()) {
+            Text("Nenhuma categoria disponível.")
+        } else {
+            val indiceAtual = if (indice in categorias.indices) indice else 0
+            val categoria = categorias[indiceAtual]
+            val gasto = viewModel.getGastoDaCategoria(categoria.id)
+            val proporcao = if (categoria.limiteMensal > 0) {
+                gasto / categoria.limiteMensal
+            } else if (gasto > 0) {
+                1.0
+            } else {
+                0.0
+            }
+            val percentual = (proporcao * 100).toInt()
+
+            Text("Categoria " + (indiceAtual + 1) + " de " + categorias.size)
+            Text(categoria.iconeNome + " " + categoria.nome)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Gasto: " + formatCurrency(gasto))
+            Text("Meta: " + formatCurrency(categoria.limiteMensal))
+            if (categoria.limiteMensal == 0.0 && gasto > 0) {
+                Text("Uso da meta: limite ultrapassado")
+            } else {
+                Text("Uso da meta: " + percentual + "%")
+            }
+            if (proporcao >= 0.9) {
+                Text("Atenção: meta quase atingida ou ultrapassada.")
+            } else if (proporcao >= 0.7) {
+                Text("Atenção: gasto próximo da meta.")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            if (editando) {
+                OutlinedTextField(
+                    value = novoLimite,
+                    onValueChange = {
+                        novoLimite = it
+                        erro = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = LumeAccent)
-                ) {
-                    Text("Salvar", color = LumeBg, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text("Cancelar", color = LumeTextSecondary)
-                }
-            }
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LumeBg)
-            .padding(horizontal = 20.dp)
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "ORÇAMENTOS E METAS",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = LumeTextSecondary,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(viewModel.allCategorias) { categoria ->
-                val gasto = viewModel.getGastoDaCategoria(categoria.id)
-                BudgetLumeItem(categoria, gasto) {
-                    selectedCategoria = categoria
+                    label = { Text("Limite mensal (R$)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = {
+                    val limite = novoLimite.replace(',', '.').toDoubleOrNull()
+                    if (limite == null || !limite.isFinite() || limite < 0.0) {
+                        erro = "Informe um limite válido."
+                    } else {
+                        viewModel.updateCategoriaLimite(categoria, limite)
+                        editando = false
+                    }
+                }) { Text("Salvar meta") }
+                TextButton(onClick = { editando = false }) { Text("Cancelar") }
+                erro?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } else {
+                TextButton(onClick = {
                     novoLimite = categoria.limiteMensal.toString()
-                    showDialog = true
-                }
+                    erro = null
+                    editando = true
+                }) { Text("Ajustar meta") }
             }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
-        }
-    }
-}
 
-@Composable
-fun BudgetLumeItem(categoria: Categoria, gasto: Double, onEdit: () -> Unit) {
-    val progress = if (categoria.limiteMensal > 0) gasto / categoria.limiteMensal else 0.0
-    
-    val color = when {
-        progress >= 0.9 -> LumeError
-        progress >= 0.7 -> Color(0xFFFBC02D)
-        else -> LumeAccent
-    }
+            viewModel.mensagem?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(LumeSurface)
-            .border(1.dp, LumeBorder, RoundedCornerShape(16.dp))
-            .padding(20.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "${categoria.iconeNome} ${categoria.nome.uppercase()}", 
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 12.sp,
-                color = LumeTextPrimary,
-                letterSpacing = 1.sp
-            )
-            IconButton(onClick = onEdit, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Edit, contentDescription = null, tint = LumeTextSecondary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            if (indiceAtual > 0) {
+                TextButton(onClick = {
+                    indice = indiceAtual - 1
+                    editando = false
+                }) { Text("Categoria anterior") }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        LinearProgressIndicator(
-            progress = { progress.toFloat().coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-            color = color,
-            trackColor = LumeBg
-        )
-        
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text("GASTO", style = MaterialTheme.typography.labelSmall, color = LumeTextSecondary)
-                Text(formatCurrency(gasto), fontWeight = FontWeight.Bold, color = LumeTextPrimary)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("META", style = MaterialTheme.typography.labelSmall, color = LumeTextSecondary)
-                Text(formatCurrency(categoria.limiteMensal), fontWeight = FontWeight.Bold, color = LumeTextSecondary)
+            if (indiceAtual < categorias.lastIndex) {
+                TextButton(onClick = {
+                    indice = indiceAtual + 1
+                    editando = false
+                }) { Text("Próxima categoria") }
             }
         }
     }
