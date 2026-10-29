@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,7 +23,11 @@ import androidx.navigation.NavHostController
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
-fun FormularioScreen(viewModel: AppViewModel, navController: NavHostController) {
+fun FormularioScreen(
+    viewModel: AppViewModel,
+    navController: NavHostController,
+    transacaoId: Long? = null
+) {
     var descricao by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("DESPESA") }
@@ -30,9 +35,28 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavHostController) 
     var efetivado by remember { mutableStateOf(true) }
     var erro by remember { mutableStateOf<String?>(null) }
     val categorias = viewModel.allCategorias
+    val editando = transacaoId != null
+
+    LaunchedEffect(transacaoId) {
+        viewModel.clearMensagem()
+        if (transacaoId != null) {
+            val t = viewModel.allTransacoes.find { it.id == transacaoId }
+            if (t != null) {
+                descricao = t.descricao
+                valor = t.valor.toString()
+                tipo = t.tipo
+                efetivado = t.efetivado
+                val idx = categorias.indexOfFirst { it.id == t.categoriaId }
+                categoriaIndice = if (idx >= 0) idx else 0
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("NOVO LANÇAMENTO", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = if (editando) "EDITAR LANÇAMENTO" else "NOVO LANÇAMENTO",
+            style = MaterialTheme.typography.headlineMedium
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
@@ -95,19 +119,31 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavHostController) 
                 } else {
                     erro = null
                     viewModel.clearMensagem()
-                    viewModel.addTransacao(
-                        descricao = descricao,
-                        valor = valorNumerico,
-                        tipo = tipo,
-                        categoriaId = categorias[categoriaIndice].id,
-                        efetivado = efetivado,
-                        onSuccess = { navController.popBackStack() }
-                    )
+                    if (transacaoId != null) {
+                        viewModel.updateTransacao(
+                            id = transacaoId,
+                            descricao = descricao,
+                            valor = valorNumerico,
+                            tipo = tipo,
+                            categoriaId = categorias[categoriaIndice].id,
+                            efetivado = efetivado,
+                            onSuccess = { navController.popBackStack() }
+                        )
+                    } else {
+                        viewModel.addTransacao(
+                            descricao = descricao,
+                            valor = valorNumerico,
+                            tipo = tipo,
+                            categoriaId = categorias[categoriaIndice].id,
+                            efetivado = efetivado,
+                            onSuccess = { navController.popBackStack() }
+                        )
+                    }
                 }
             },
             enabled = !viewModel.carregando
         ) {
-            Text("Salvar lançamento")
+            Text(if (editando) "Salvar alterações" else "Salvar lançamento")
         }
         TextButton(
             onClick = { navController.popBackStack() },

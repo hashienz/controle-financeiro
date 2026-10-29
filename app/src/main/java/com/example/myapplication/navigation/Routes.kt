@@ -24,4 +24,4 @@ data object Metas
 data object Graficos
 
 @Serializable
-data object Formulario
+data class Formulario(val transacaoId: Long? = null)

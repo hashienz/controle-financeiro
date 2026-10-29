@@ -143,6 +143,44 @@ class AulaRepository(context: Context) {
         }
     }
 
+    fun atualizarTransacao(
+        id: Long,
+        usuarioId: Long,
+        descricao: String,
+        valor: Double,
+        tipo: String,
+        categoriaId: Long,
+        efetivado: Boolean
+    ): Boolean {
+        require(valor > 0.0 && valor.isFinite()) { "Informe um valor positivo." }
+        require(tipo == "RECEITA" || tipo == "DESPESA") { "Tipo de lançamento inválido." }
+        return AppDatabase(appContext).use { helper ->
+            val dados = ContentValues().apply {
+                put("descricao", descricao)
+                put("valor", valor)
+                put("tipo", tipo)
+                put("categoria_id", categoriaId)
+                put("efetivado", if (efetivado) 1 else 0)
+            }
+            val rows = helper.writableDatabase.update(
+                "transacoes",
+                dados,
+                "id = ? AND usuario_id = ?",
+                arrayOf(id.toString(), usuarioId.toString())
+            )
+            rows > 0
+        }
+    }
+
+    fun deletarTransacao(id: Long, usuarioId: Long): Boolean = AppDatabase(appContext).use { helper ->
+        val rows = helper.writableDatabase.delete(
+            "transacoes",
+            "id = ? AND usuario_id = ?",
+            arrayOf(id.toString(), usuarioId.toString())
+        )
+        rows > 0
+    }
+
     fun limiteAtual(usuarioId: Long, categoriaId: Long): Double? = AppDatabase(appContext).use { helper ->
         helper.readableDatabase.query(
             "historico_limites",
@@ -165,6 +203,15 @@ class AulaRepository(context: Context) {
             }
             helper.writableDatabase.insertOrThrow("historico_limites", null, dados)
         }
+    }
+
+    fun deletarLimite(usuarioId: Long, categoriaId: Long): Boolean = AppDatabase(appContext).use { helper ->
+        val rows = helper.writableDatabase.delete(
+            "historico_limites",
+            "usuario_id = ? AND categoria_id = ?",
+            arrayOf(usuarioId.toString(), categoriaId.toString())
+        )
+        rows > 0
     }
 
     private fun registrarSessao(db: SQLiteDatabase, usuarioId: Long, ativo: Boolean) {

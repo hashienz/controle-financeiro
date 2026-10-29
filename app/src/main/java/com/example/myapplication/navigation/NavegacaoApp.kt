@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.example.myapplication.view.ExtratoScreen
 import com.example.myapplication.view.FormularioScreen
 import com.example.myapplication.view.GraficosScreen
@@ -83,16 +84,19 @@ fun NavegacaoApp(viewModel: AppViewModel) {
             composable<Home> { HomeScreen(viewModel, navController) }
             composable<Secoes> {
                 SecoesScreen(
-                    irFormulario = { navController.navigate(Formulario) },
+                    irFormulario = { navController.navigate(Formulario()) },
                     irExtrato = { navController.navigate(Extrato) },
                     irMetas = { navController.navigate(Metas) },
                     irGraficos = { navController.navigate(Graficos) }
                 )
             }
-            composable<Extrato> { ExtratoScreen(viewModel) }
+            composable<Extrato> { ExtratoScreen(viewModel, navController) }
             composable<Metas> { MetasScreen(viewModel) }
             composable<Graficos> { GraficosScreen(viewModel) }
-            composable<Formulario> { FormularioScreen(viewModel, navController) }
+            composable<Formulario> { backStackEntry ->
+                val route = backStackEntry.toRoute<Formulario>()
+                FormularioScreen(viewModel, navController, route.transacaoId)
+            }
         }
     }
 }

@@ -183,6 +183,69 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateTransacao(
+        id: Long,
+        descricao: String,
+        valor: Double,
+        tipo: String,
+        categoriaId: Long,
+        efetivado: Boolean,
+        onSuccess: () -> Unit
+    ) {
+        val atual = usuario ?: return
+        if (carregando) return
+        if (!valor.isFinite() || valor <= 0.0 ||
+            (tipo != "RECEITA" && tipo != "DESPESA") ||
+            allCategorias.none { it.id == categoriaId }
+        ) {
+            mensagem = "Confira o valor, tipo e categoria do lançamento."
+            return
+        }
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                val transacoes = withContext(Dispatchers.IO) {
+                    repository.atualizarTransacao(
+                        id, atual.id, descricao, valor, tipo, categoriaId, efetivado
+                    )
+                    repository.listarTransacoes(atual.id)
+                }
+                allTransacoes = transacoes
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível atualizar o lançamento."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
+    fun deleteTransacao(id: Long, onSuccess: () -> Unit = {}) {
+        val atual = usuario ?: return
+        if (carregando) return
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                val transacoes = withContext(Dispatchers.IO) {
+                    repository.deletarTransacao(id, atual.id)
+                    repository.listarTransacoes(atual.id)
+                }
+                allTransacoes = transacoes
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível remover o lançamento."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
     fun updateCategoriaLimite(categoria: Categoria, novoLimite: Double) {
         val atual = usuario ?: return
         if (carregando) return
@@ -206,6 +269,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             } catch (_: Exception) {
                 mensagem = "Não foi possível salvar o limite."
+            } finally {
+                carregando = false
+            }
+        }
+    }
+
+    fun deleteCategoriaLimite(categoria: Categoria) {
+        val atual = usuario ?: return
+        if (carregando) return
+        carregando = true
+        mensagem = null
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.deletarLimite(atual.id, categoria.id)
+                }
+                allCategorias = allCategorias.map {
+                    if (it.id == categoria.id) it.copy(limiteMensal = 500.0) else it
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mensagem = "Não foi possível remover o limite."
             } finally {
                 carregando = false
             }
