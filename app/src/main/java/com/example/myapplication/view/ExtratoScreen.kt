@@ -1,150 +1,149 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import com.example.myapplication.navigation.Formulario
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.myapplication.model.Transacao
+import com.example.myapplication.navigation.Screen
 import com.example.myapplication.viewmodel.AppViewModel
+import com.example.myapplication.theme.*
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 @Composable
-fun ExtratoScreen(viewModel: AppViewModel, navController: NavHostController) {
-    var pesquisa by remember { mutableStateOf("") }
-    var filtro by remember { mutableStateOf("TODOS") }
+fun ExtratoScreen(viewModel: AppViewModel, navController: NavController) {
+    var searchText by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("TODOS") }
+    var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
 
+    // Lista as transações direto do banco ao abrir a tela
     LaunchedEffect(Unit) {
-        viewModel.clearMensagem()
+        viewModel.carregarTransacoes()
     }
 
-    val transacoes = viewModel.allTransacoes.filter {
-        it.descricao.contains(pesquisa, ignoreCase = true) &&
-            (filtro == "TODOS" || it.tipo == filtro)
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("EXTRATO", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = pesquisa,
-            onValueChange = { pesquisa = it },
-            label = { Text("Pesquisar transação") },
-            modifier = Modifier.fillMaxWidth()
+    // Diálogo de confirmação do DELETE
+    if (transacaoParaExcluir != null) {
+        AlertDialog(
+            onDismissRequest = { transacaoParaExcluir = null },
+            containerColor = LumeSurface,
+            title = { Text("Excluir lançamento?", color = LumeTextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("\"${transacaoParaExcluir!!.descricao}\" será removido.", color = LumeTextSecondary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTransacao(transacaoParaExcluir!!)
+                        transacaoParaExcluir = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = LumeError)
+                ) { Text("Excluir", color = LumeTextPrimary, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { transacaoParaExcluir = null }) {
+                    Text("Cancelar", color = LumeTextSecondary)
+                }
+            }
         )
-        Spacer(modifier = Modifier.height(4.dp))
+    }
 
-        Row(
+    // Lógica simples de filtragem
+    val filteredTransacoes = viewModel.allTransacoes.filter {
+        (it.descricao.contains(searchText, ignoreCase = true)) &&
+        (selectedFilter == "TODOS" || it.tipo == selectedFilter)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LumeBg)
+            .padding(horizontal = 20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = { searchText = it },
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            placeholder = { Text("Pesquisar transação...", color = LumeTextSecondary) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = LumeTextSecondary) },
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = LumeBorder,
+                focusedBorderColor = LumeAccent,
+                unfocusedContainerColor = LumeSurface,
+                focusedContainerColor = LumeSurface
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            TextButton(onClick = { filtro = "TODOS" }) {
-                Text(if (filtro == "TODOS") "Todos ✓" else "Todos")
-            }
-            TextButton(onClick = { filtro = "RECEITA" }) {
-                Text(if (filtro == "RECEITA") "Receitas ✓" else "Receitas")
-            }
-            TextButton(onClick = { filtro = "DESPESA" }) {
-                Text(if (filtro == "DESPESA") "Despesas ✓" else "Despesas")
-            }
+            FilterButton("Todos", selectedFilter == "TODOS") { selectedFilter = "TODOS" }
+            FilterButton("Receitas", selectedFilter == "RECEITA") { selectedFilter = "RECEITA" }
+            FilterButton("Despesas", selectedFilter == "DESPESA") { selectedFilter = "DESPESA" }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        viewModel.mensagem?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        if (transacoes.isEmpty()) {
-            Text("Nenhum lançamento encontrado.")
+        if (filteredTransacoes.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nenhum lançamento encontrado.", color = LumeTextSecondary)
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(transacoes, key = { it.id }) { transacao ->
-                    val categoriaNome = viewModel.allCategorias
-                        .find { it.id == transacao.categoriaId }?.nome ?: "Sem Categoria"
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = transacao.descricao,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    text = formatCurrency(transacao.valor),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (transacao.tipo == "RECEITA")
-                                        MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.error
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "${formatDate(transacao.dataInMillis)} • $categoriaNome",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    text = if (transacao.efetivado) "Efetivado" else "Pendente",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(onClick = {
-                                    navController.navigate(Formulario(transacaoId = transacao.id))
-                                }) {
-                                    Text("Editar")
-                                }
-                                TextButton(onClick = {
-                                    viewModel.deleteTransacao(transacao.id)
-                                }) {
-                                    Text("Excluir", color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
+                items(filteredTransacoes) { transacao ->
+                    Column {
+                        Text(
+                            text = formatDate(transacao.dataInMillis),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LumeTextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        TransactionLumeItem(
+                            transacao,
+                            showValues = true,
+                            onClick = {
+                                viewModel.selecionarTransacaoParaEditar(transacao)
+                                navController.navigate(Screen.TransactionForm.route)
+                            },
+                            onDelete = { transacaoParaExcluir = transacao }
+                        )
                     }
                 }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
+    }
+}
+
+@Composable
+fun RowScope.FilterButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.weight(1f),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isSelected) LumeAccent else LumeSurface,
+            contentColor = if (isSelected) LumeBg else LumeTextSecondary
+        ),
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Text(label, fontSize = 12.sp)
     }
 }
 

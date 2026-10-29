@@ -1,89 +1,118 @@
 package com.example.myapplication.view
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.myapplication.navigation.Screen
+import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
 @Composable
-fun LoginScreen(
-    viewModel: AppViewModel,
-    loginSucesso: () -> Unit,
-    irCadastro: () -> Unit
-) {
+fun LoginScreen(viewModel: AppViewModel, navController: NavController) {
     var email by remember { mutableStateOf("") }
-    var senha by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var erro by remember { mutableStateOf<String?>(null) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LumeBg)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Text("LUME", style = MaterialTheme.typography.headlineLarge)
-        Text("Sua vida financeira, simplificada.")
-        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "LUME",
+            color = LumeAccent,
+            fontSize = 40.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 4.sp
+        )
+        Text(
+            text = "Sua vida financeira, simplificada.",
+            color = LumeTextSecondary,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 48.dp)
+        )
 
         OutlinedTextField(
             value = email,
-            onValueChange = {
-                email = it
-                viewModel.clearMensagem()
-            },
+            onValueChange = { email = it; erro = null },
             label = { Text("E-mail") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            enabled = !viewModel.carregando
-        )
-        Spacer(Modifier.height(16.dp))
-        OutlinedTextField(
-            value = senha,
-            onValueChange = {
-                senha = it
-                viewModel.clearMensagem()
-            },
-            label = { Text("Senha") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !viewModel.carregando
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = LumeBorder,
+                focusedBorderColor = LumeAccent
+            ),
+            shape = RoundedCornerShape(12.dp)
         )
 
-        viewModel.mensagem?.let { mensagem ->
-            Spacer(Modifier.height(16.dp))
-            Text(mensagem, color = MaterialTheme.colorScheme.error)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it; erro = null },
+            label = { Text("Senha") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = LumeBorder,
+                focusedBorderColor = LumeAccent
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        if (erro != null) {
+            Text(
+                text = erro!!,
+                color = LumeError,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+            )
         }
-        Spacer(Modifier.height(24.dp))
+
+        Spacer(modifier = Modifier.height(32.dp))
+
         Button(
-            onClick = { viewModel.login(email, senha, loginSucesso) },
-            enabled = !viewModel.carregando && email.isNotBlank() && senha.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (viewModel.carregando) "Entrando..." else "Entrar")
-        }
-        TextButton(
             onClick = {
-                viewModel.clearMensagem()
-                irCadastro()
+                erro = viewModel.login(email, password)
+                if (erro == null) {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                }
             },
-            enabled = !viewModel.carregando
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = LumeAccent),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Criar conta")
+            Text("Entrar", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = LumeBg)
+        }
+
+        TextButton(
+            onClick = { navController.navigate(Screen.Cadastro.route) },
+            modifier = Modifier.padding(top = 16.dp)
+        ) {
+            Text(
+                "Não tem conta? Cadastre-se",
+                color = LumeTextSecondary,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

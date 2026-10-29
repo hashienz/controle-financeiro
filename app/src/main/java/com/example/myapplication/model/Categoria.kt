@@ -6,5 +6,6 @@ data class Categoria(
     val iconeNome: String,
     val corHex: String,
     val limiteMensal: Double = 0.0,
-    val metaAtiva: Boolean = true
+    val metaAtiva: Boolean = true,
+    val usuarioId: Long = 0
 )

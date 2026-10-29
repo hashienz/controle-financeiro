@@ -1,355 +1,256 @@
 package com.example.myapplication.viewmodel
 
-import android.app.Application
-import android.util.Patterns
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.AulaRepository
-import com.example.myapplication.data.Usuario
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.example.myapplication.database.CategoriaDAO
+import com.example.myapplication.database.TransacaoDAO
+import com.example.myapplication.database.UsuarioDAO
+import com.example.myapplication.localstorage.PreferenciasApp
 import com.example.myapplication.model.Categoria
 import com.example.myapplication.model.Transacao
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.example.myapplication.model.Usuario
 
-class AppViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = AulaRepository(application)
+class AppViewModel(
+    private val prefs: PreferenciasApp,
+    private val usuarioDAO: UsuarioDAO,
+    private val categoriaDAO: CategoriaDAO,
+    private val transacaoDAO: TransacaoDAO
+) : ViewModel() {
 
-    var inicializando by mutableStateOf(true)
-        private set
-    var carregando by mutableStateOf(false)
-        private set
-    var mensagem by mutableStateOf<String?>(null)
-        private set
-    var usuario by mutableStateOf<Usuario?>(null)
-        private set
-    var allTransacoes by mutableStateOf<List<Transacao>>(emptyList())
-        private set
-    var allCategorias by mutableStateOf(categoriasPadrao())
+    // ---------- Sessão ----------
+    var isUserLoggedIn = mutableStateOf(prefs.isLoggedIn())
         private set
 
-    init {
-        viewModelScope.launch {
-            try {
-                val sessao = withContext(Dispatchers.IO) { repository.sessaoAtual() }
-                if (sessao != null) {
-                    carregarDados(sessao.id)
-                    usuario = sessao
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível carregar a sessão."
-            } finally {
-                inicializando = false
-            }
+    var nomeUsuario = mutableStateOf(prefs.getNomeUsuario())
+        private set
+
+    // ---------- Dados que as telas observam ----------
+    var allTransacoes = mutableStateListOf<Transacao>()
+        private set
+
+    var allCategorias = mutableStateListOf<Categoria>()
+        private set
+
+    // Transação escolhida para editar (null = criando uma nova)
+    var transacaoEmEdicao = mutableStateOf<Transacao?>(null)
+        private set
+
+    // Totais calculados
+    var totalReceitasEfetivadas = mutableDoubleStateOf(0.0)
+        private set
+    var totalReceitasPrevistas = mutableDoubleStateOf(0.0)
+        private set
+    var totalDespesasEfetivadas = mutableDoubleStateOf(0.0)
+        private set
+    var totalDespesasPrevistas = mutableDoubleStateOf(0.0)
+        private set
+
+    // =====================================================
+    // LOGIN / CADASTRO / LOGOUT
+    // =====================================================
+
+    // Retorna null se deu certo, ou a mensagem de erro
+    fun login(email: String, senha: String): String? {
+        if (email.isBlank() || senha.isBlank()) return "Preencha e-mail e senha"
+
+        val usuario = usuarioDAO.autenticar(email.trim(), senha)
+            ?: return "E-mail ou senha inválidos"
+
+        iniciarSessao(usuario)
+        return null
+    }
+
+    // Retorna null se deu certo, ou a mensagem de erro
+    fun cadastrar(nome: String, email: String, senha: String, confirmarSenha: String): String? {
+        if (nome.isBlank() || email.isBlank() || senha.isBlank()) return "Preencha todos os campos"
+        if (!email.contains("@")) return "E-mail inválido"
+        if (senha.length < 4) return "A senha deve ter pelo menos 4 caracteres"
+        if (senha != confirmarSenha) return "As senhas não conferem"
+        if (usuarioDAO.buscarPorEmail(email.trim()) != null) return "E-mail já cadastrado"
+
+        val novoUsuario = Usuario(nome = nome.trim(), email = email.trim(), senha = senha)
+        val id = usuarioDAO.inserir(novoUsuario)
+        if (id == -1L) return "Erro ao cadastrar usuário"
+
+        criarCategoriasPadrao(id)
+        iniciarSessao(novoUsuario.copy(id = id))
+        return null
+    }
+
+    fun logout() {
+        prefs.limparSessao()
+        allTransacoes.clear()
+        allCategorias.clear()
+        nomeUsuario.value = ""
+        isUserLoggedIn.value = false
+    }
+
+    private fun iniciarSessao(usuario: Usuario) {
+        prefs.salvarSessao(usuario.id, usuario.nome)
+        nomeUsuario.value = usuario.nome
+        isUserLoggedIn.value = true
+        carregarDados()
+    }
+
+    // Todo usuário novo já começa com algumas categorias
+    private fun criarCategoriasPadrao(usuarioId: Long) {
+        val padroes = listOf(
+            Triple("Alimentação", "🍔", "#FF5722"),
+            Triple("Transporte", "🚗", "#2196F3"),
+            Triple("Lazer", "🎮", "#4CAF50"),
+            Triple("Moradia", "🏠", "#9C27B0")
+        )
+        for (item in padroes) {
+            categoriaDAO.inserir(
+                Categoria(
+                    nome = item.first,
+                    iconeNome = item.second,
+                    corHex = item.third,
+                    limiteMensal = 500.0,
+                    usuarioId = usuarioId
+                )
+            )
         }
     }
 
-    fun clearMensagem() {
-        mensagem = null
+    // =====================================================
+    // LEITURA DO BANCO (chamada pelo LaunchedEffect das telas)
+    // =====================================================
+
+    fun carregarDados() {
+        carregarCategorias()
+        carregarTransacoes()
     }
 
-    fun login(email: String, senha: String, onSuccess: () -> Unit) {
-        if (carregando || usuario != null) return
-        val emailLimpo = email.trim()
-        if (!Patterns.EMAIL_ADDRESS.matcher(emailLimpo).matches() || senha.isEmpty()) {
-            mensagem = "Informe um e-mail válido e a senha."
-            return
-        }
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                val encontrado = withContext(Dispatchers.IO) {
-                    repository.entrar(emailLimpo, senha)
-                }
-                if (encontrado == null) {
-                    mensagem = "E-mail ou senha inválidos."
-                } else {
-                    carregarDados(encontrado.id)
-                    usuario = encontrado
-                    onSuccess()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível entrar. Tente novamente."
-            } finally {
-                carregando = false
-            }
-        }
+    fun carregarCategorias() {
+        val usuarioId = prefs.getUsuarioId()
+        if (usuarioId == -1L) return
+        allCategorias.clear()
+        allCategorias.addAll(categoriaDAO.listarPorUsuario(usuarioId))
     }
 
-    fun cadastrar(nome: String, email: String, senha: String, onSuccess: () -> Unit) {
-        if (carregando || usuario != null) return
-        val nomeLimpo = nome.trim()
-        val emailLimpo = email.trim()
-        mensagem = when {
-            nomeLimpo.length !in 3..100 -> "O nome deve ter entre 3 e 100 caracteres."
-            !Patterns.EMAIL_ADDRESS.matcher(emailLimpo).matches() -> "Informe um e-mail válido."
-            senha.length !in 8..128 -> "A senha deve ter entre 8 e 128 caracteres."
-            else -> null
-        }
-        if (mensagem != null) return
-        carregando = true
-        viewModelScope.launch {
-            try {
-                val novoUsuario = withContext(Dispatchers.IO) {
-                    repository.cadastrar(nomeLimpo, emailLimpo, senha)
-                }
-                if (novoUsuario == null) {
-                    mensagem = "Este e-mail já está cadastrado."
-                } else {
-                    carregarDados(novoUsuario.id)
-                    usuario = novoUsuario
-                    onSuccess()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível criar a conta. Tente novamente."
-            } finally {
-                carregando = false
-            }
-        }
+    fun carregarTransacoes() {
+        val usuarioId = prefs.getUsuarioId()
+        if (usuarioId == -1L) return
+        allTransacoes.clear()
+        allTransacoes.addAll(transacaoDAO.listarPorUsuario(usuarioId))
+        recalcularTotais()
     }
 
-    fun sair(onSuccess: () -> Unit) {
-        val atual = usuario ?: return
-        if (carregando) return
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) { repository.sair(atual.id) }
-                usuario = null
-                allTransacoes = emptyList()
-                allCategorias = categoriasPadrao()
-                onSuccess()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível sair. Tente novamente."
-            } finally {
-                carregando = false
-            }
-        }
+    // =====================================================
+    // CRUD 1 - TRANSAÇÃO
+    // =====================================================
+
+    fun selecionarTransacaoParaEditar(transacao: Transacao?) {
+        transacaoEmEdicao.value = transacao
     }
 
-    fun addTransacao(
-        descricao: String,
-        valor: Double,
-        tipo: String,
-        categoriaId: Long,
-        efetivado: Boolean,
-        onSuccess: () -> Unit
-    ) {
-        val atual = usuario ?: return
-        if (carregando) return
-        if (!valor.isFinite() || valor <= 0.0 ||
-            (tipo != "RECEITA" && tipo != "DESPESA") ||
-            allCategorias.none { it.id == categoriaId }
-        ) {
-            mensagem = "Confira o valor, tipo e categoria do lançamento."
-            return
-        }
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                val transacoes = withContext(Dispatchers.IO) {
-                    repository.inserirTransacao(
-                        atual.id, descricao, valor, tipo, categoriaId, efetivado
-                    )
-                    repository.listarTransacoes(atual.id)
-                }
-                allTransacoes = transacoes
-                onSuccess()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível salvar o lançamento."
-            } finally {
-                carregando = false
-            }
-        }
+    fun addTransacao(descricao: String, valor: Double, tipo: String, categoriaId: Long, efetivado: Boolean) {
+        val novaTransacao = Transacao(
+            descricao = descricao,
+            valor = valor,
+            tipo = tipo,
+            dataInMillis = System.currentTimeMillis(),
+            categoriaId = categoriaId,
+            efetivado = efetivado,
+            usuarioId = prefs.getUsuarioId()
+        )
+        transacaoDAO.inserir(novaTransacao)
+        carregarTransacoes()
     }
 
-    fun updateTransacao(
-        id: Long,
-        descricao: String,
-        valor: Double,
-        tipo: String,
-        categoriaId: Long,
-        efetivado: Boolean,
-        onSuccess: () -> Unit
-    ) {
-        val atual = usuario ?: return
-        if (carregando) return
-        if (!valor.isFinite() || valor <= 0.0 ||
-            (tipo != "RECEITA" && tipo != "DESPESA") ||
-            allCategorias.none { it.id == categoriaId }
-        ) {
-            mensagem = "Confira o valor, tipo e categoria do lançamento."
-            return
-        }
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                val transacoes = withContext(Dispatchers.IO) {
-                    repository.atualizarTransacao(
-                        id, atual.id, descricao, valor, tipo, categoriaId, efetivado
-                    )
-                    repository.listarTransacoes(atual.id)
-                }
-                allTransacoes = transacoes
-                onSuccess()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível atualizar o lançamento."
-            } finally {
-                carregando = false
-            }
-        }
+    fun updateTransacao(transacao: Transacao) {
+        transacaoDAO.atualizar(transacao)
+        carregarTransacoes()
     }
 
-    fun deleteTransacao(id: Long, onSuccess: () -> Unit = {}) {
-        val atual = usuario ?: return
-        if (carregando) return
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                val transacoes = withContext(Dispatchers.IO) {
-                    repository.deletarTransacao(id, atual.id)
-                    repository.listarTransacoes(atual.id)
-                }
-                allTransacoes = transacoes
-                onSuccess()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível remover o lançamento."
-            } finally {
-                carregando = false
-            }
-        }
+    fun deleteTransacao(transacao: Transacao) {
+        transacaoDAO.deletar(transacao.id)
+        carregarTransacoes()
     }
 
-    fun updateCategoriaLimite(categoria: Categoria, novoLimite: Double) {
-        val atual = usuario ?: return
-        if (carregando) return
-        if (!novoLimite.isFinite() || novoLimite < 0.0 ||
-            allCategorias.none { it.id == categoria.id }
-        ) {
-            mensagem = "Informe um limite válido."
-            return
-        }
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    repository.salvarLimite(atual.id, categoria.id, novoLimite)
-                }
-                allCategorias = allCategorias.map {
-                    if (it.id == categoria.id) it.copy(limiteMensal = novoLimite) else it
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível salvar o limite."
-            } finally {
-                carregando = false
-            }
-        }
+    // =====================================================
+    // CRUD 2 - CATEGORIA
+    // =====================================================
+
+    fun addCategoria(nome: String, icone: String, limite: Double) {
+        val cores = listOf("#FF5722", "#2196F3", "#4CAF50", "#9C27B0", "#FFC107", "#00BCD4")
+        val novaCategoria = Categoria(
+            nome = nome,
+            iconeNome = icone.ifBlank { "📁" },
+            corHex = cores[allCategorias.size % cores.size],
+            limiteMensal = limite,
+            usuarioId = prefs.getUsuarioId()
+        )
+        categoriaDAO.inserir(novaCategoria)
+        carregarCategorias()
     }
 
-    fun deleteCategoriaLimite(categoria: Categoria) {
-        val atual = usuario ?: return
-        if (carregando) return
-        carregando = true
-        mensagem = null
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    repository.deletarLimite(atual.id, categoria.id)
-                }
-                allCategorias = allCategorias.map {
-                    if (it.id == categoria.id) it.copy(limiteMensal = 500.0) else it
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                mensagem = "Não foi possível remover o limite."
-            } finally {
-                carregando = false
-            }
-        }
+    fun updateCategoria(categoria: Categoria) {
+        categoriaDAO.atualizar(categoria)
+        carregarCategorias()
     }
 
-    val totalReceitasEfetivadas: Double get() = totalPara("RECEITA", true)
-    val totalReceitasPrevistas: Double get() = totalPara("RECEITA", false)
-    val totalDespesasEfetivadas: Double get() = totalPara("DESPESA", true)
-    val totalDespesasPrevistas: Double get() = totalPara("DESPESA", false)
+    // Ao apagar uma categoria, as transações dela também são apagadas
+    fun deleteCategoria(categoria: Categoria) {
+        transacaoDAO.deletarPorCategoria(categoria.id)
+        categoriaDAO.deletar(categoria.id)
+        carregarDados()
+    }
 
-    private fun totalPara(tipo: String, efetivado: Boolean): Double {
-        var total = 0.0
-        for (transacao in allTransacoes) {
-            if (transacao.tipo == tipo && transacao.efetivado == efetivado) {
-                total += transacao.valor
+    // =====================================================
+    // CÁLCULOS
+    // =====================================================
+
+    private fun recalcularTotais() {
+        var recEfetivadas = 0.0
+        var recPrevistas = 0.0
+        var despEfetivadas = 0.0
+        var despPrevistas = 0.0
+
+        for (t in allTransacoes) {
+            if (t.tipo == "RECEITA") {
+                if (t.efetivado) recEfetivadas += t.valor else recPrevistas += t.valor
+            } else if (t.tipo == "DESPESA") {
+                if (t.efetivado) despEfetivadas += t.valor else despPrevistas += t.valor
             }
         }
-        return total
+
+        totalReceitasEfetivadas.doubleValue = recEfetivadas
+        totalReceitasPrevistas.doubleValue = recPrevistas
+        totalDespesasEfetivadas.doubleValue = despEfetivadas
+        totalDespesasPrevistas.doubleValue = despPrevistas
     }
 
     fun getGastoDaCategoria(categoriaId: Long): Double {
-        var total = 0.0
-        val formatoMes = SimpleDateFormat("yyyyMM", Locale.ROOT)
-        val mesAtual = formatoMes.format(Date())
-        for (transacao in allTransacoes) {
-            if (transacao.categoriaId == categoriaId &&
-                transacao.tipo == "DESPESA" &&
-                formatoMes.format(Date(transacao.dataInMillis)) == mesAtual
-            ) {
-                total += transacao.valor
+        var gastoTotal = 0.0
+        for (t in allTransacoes) {
+            if (t.categoriaId == categoriaId && t.tipo == "DESPESA") {
+                gastoTotal += t.valor
             }
         }
-        return total
+        return gastoTotal
     }
 
-    fun getRecentTransacoes(): List<Transacao> = allTransacoes.take(5)
-
-    private suspend fun carregarDados(usuarioId: Long) {
-        val transacoes = withContext(Dispatchers.IO) {
-            repository.listarTransacoes(usuarioId)
-        }
-        val categorias = withContext(Dispatchers.IO) {
-            categoriasPadrao().map { categoria ->
-                categoria.copy(
-                    limiteMensal = repository.limiteAtual(usuarioId, categoria.id)
-                        ?: categoria.limiteMensal
-                )
-            }
-        }
-        allTransacoes = transacoes
-        allCategorias = categorias
+    fun getRecentTransacoes(): List<Transacao> {
+        return allTransacoes.take(5)
     }
+}
 
-    private fun categoriasPadrao(): List<Categoria> = listOf(
-        Categoria(1, "Alimentação", "🍔", "#FF5722", 500.0),
-        Categoria(2, "Transporte", "🚗", "#2196F3", 500.0),
-        Categoria(3, "Lazer", "🎮", "#4CAF50", 500.0),
-        Categoria(4, "Moradia", "🏠", "#9C27B0", 500.0)
-    )
+class AppViewModelFactory(
+    private val prefs: PreferenciasApp,
+    private val usuarioDAO: UsuarioDAO,
+    private val categoriaDAO: CategoriaDAO,
+    private val transacaoDAO: TransacaoDAO
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return AppViewModel(prefs, usuarioDAO, categoriaDAO, transacaoDAO) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
 }

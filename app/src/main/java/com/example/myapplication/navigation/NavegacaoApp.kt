@@ -1,102 +1,145 @@
 package com.example.myapplication.navigation
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
-import com.example.myapplication.view.ExtratoScreen
-import com.example.myapplication.view.FormularioScreen
-import com.example.myapplication.view.GraficosScreen
-import com.example.myapplication.view.HomeScreen
-import com.example.myapplication.view.LoginScreen
-import com.example.myapplication.view.MetasScreen
-import com.example.myapplication.view.RegisterScreen
-import com.example.myapplication.view.SecoesScreen
+import com.example.myapplication.theme.LumeBg
+import com.example.myapplication.theme.LumeSurface
+import com.example.myapplication.view.*
 import com.example.myapplication.viewmodel.AppViewModel
+
+sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
+    object Auth : Screen("auth", "Auth", Icons.Default.Info)
+    object Cadastro : Screen("cadastro", "Cadastro", Icons.Default.Info)
+    object Dashboard : Screen("dashboard", "Início", Icons.Default.Home)
+    object Extrato : Screen("extrato", "Extrato", Icons.Default.List)
+    object Budget : Screen("budget", "Metas", Icons.Default.CheckCircle)
+    object Reports : Screen("reports", "Gráficos", Icons.Default.Info)
+    object TransactionForm : Screen("transaction_form", "Novo", Icons.Default.Add)
+}
 
 @Composable
 fun NavegacaoApp(viewModel: AppViewModel) {
-    if (viewModel.inicializando) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Carregando...")
-        }
-        return
+    val navController = rememberNavController()
+
+    // Controle de sessão: se já existe usuário salvo, abre direto no Dashboard.
+    // O remember garante que a tela inicial é decidida uma vez só, ao abrir o app.
+    val telaInicial = remember {
+        if (viewModel.isUserLoggedIn.value) Screen.Dashboard.route else Screen.Auth.route
     }
 
-    val destinoInicial = remember { if (viewModel.usuario == null) Login else Home }
-    val navController = rememberNavController()
-    val mostrarMenu = viewModel.usuario != null
-
-    Scaffold(
-        topBar = {
-            if (mostrarMenu) {
-                Column {
-                    Menu(navController, viewModel)
-                    viewModel.mensagem?.let { mensagem ->
-                        Text(mensagem, color = MaterialTheme.colorScheme.error)
-                    }
-                }
+    NavHost(
+        navController = navController,
+        startDestination = telaInicial,
+        modifier = Modifier.background(LumeBg)
+    ) {
+        // Login e Cadastro NÃO usam o MainScaffold, então o menu inferior não aparece
+        composable(Screen.Auth.route) {
+            LoginScreen(viewModel = viewModel, navController = navController)
+        }
+        composable(Screen.Cadastro.route) {
+            CadastroScreen(viewModel = viewModel, navController = navController)
+        }
+        composable(Screen.Dashboard.route) {
+            MainScaffold(navController = navController) {
+                HomeScreen(viewModel = viewModel, navController = navController)
             }
         }
+        composable(Screen.Extrato.route) {
+            MainScaffold(navController = navController) {
+                ExtratoScreen(viewModel = viewModel, navController = navController)
+            }
+        }
+        composable(Screen.Budget.route) {
+            MainScaffold(navController = navController) {
+                MetasScreen(viewModel = viewModel)
+            }
+        }
+        composable(Screen.Reports.route) {
+            MainScaffold(navController = navController) {
+                GraficosScreen(viewModel = viewModel)
+            }
+        }
+        composable(Screen.TransactionForm.route) {
+            FormularioScreen(viewModel = viewModel, navController = navController)
+        }
+    }
+}
+
+@Composable
+fun MainScaffold(
+    navController: NavHostController,
+    content: @Composable () -> Unit
+) {
+    Scaffold(
+        containerColor = LumeBg,
+        bottomBar = {
+            BottomNavigationBar(navController = navController)
+        }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = destinoInicial,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable<Login> {
-                LoginScreen(
-                    viewModel = viewModel,
-                    loginSucesso = {
-                        navController.navigate(Home) {
-                            popUpTo(Login) { inclusive = true }
+        Box(modifier = Modifier.padding(innerPadding)) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(navController: NavHostController) {
+    val items = listOf(
+        Screen.Dashboard,
+        Screen.Extrato,
+        Screen.Budget,
+        Screen.Reports
+    )
+    NavigationBar(
+        containerColor = LumeBg,
+        tonalElevation = 0.dp
+    ) {
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+        
+        items.forEach { screen ->
+            NavigationBarItem(
+                icon = { Icon(screen.icon, contentDescription = screen.title) },
+                label = { Text(screen.title) },
+                selected = currentRoute == screen.route,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = LumeSurface
+                ),
+                onClick = {
+                    if (currentRoute != screen.route) {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    },
-                    irCadastro = { navController.navigate(Cadastro) }
-                )
-            }
-            composable<Cadastro> {
-                RegisterScreen(
-                    viewModel = viewModel,
-                    cadastroSucesso = {
-                        navController.navigate(Home) {
-                            popUpTo(Login) { inclusive = true }
-                        }
-                    },
-                    irLogin = { navController.popBackStack() }
-                )
-            }
-            composable<Home> { HomeScreen(viewModel, navController) }
-            composable<Secoes> {
-                SecoesScreen(
-                    irFormulario = { navController.navigate(Formulario()) },
-                    irExtrato = { navController.navigate(Extrato) },
-                    irMetas = { navController.navigate(Metas) },
-                    irGraficos = { navController.navigate(Graficos) }
-                )
-            }
-            composable<Extrato> { ExtratoScreen(viewModel, navController) }
-            composable<Metas> { MetasScreen(viewModel) }
-            composable<Graficos> { GraficosScreen(viewModel) }
-            composable<Formulario> { backStackEntry ->
-                val route = backStackEntry.toRoute<Formulario>()
-                FormularioScreen(viewModel, navController, route.transacaoId)
-            }
+                    }
+                }
+            )
         }
     }
 }

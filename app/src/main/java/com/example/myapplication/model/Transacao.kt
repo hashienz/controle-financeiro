@@ -7,5 +7,6 @@ data class Transacao(
     val tipo: String, // "RECEITA" ou "DESPESA"
     val dataInMillis: Long,
     val categoriaId: Long,
-    val efetivado: Boolean = true
+    val efetivado: Boolean = true,
+    val usuarioId: Long = 0
 )
