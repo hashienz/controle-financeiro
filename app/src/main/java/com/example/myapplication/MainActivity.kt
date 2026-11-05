@@ -12,7 +12,8 @@ import com.example.myapplication.viewmodel.AppViewModel
 import com.example.myapplication.viewmodel.AppViewModelFactory
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) 
+    {
         super.onCreate(savedInstanceState)
         
         // Inicializar SharedPreferences e ViewModel
