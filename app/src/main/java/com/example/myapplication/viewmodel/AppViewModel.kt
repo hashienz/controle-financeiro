@@ -1,8 +1,10 @@
 package com.example.myapplication.viewmodel
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.myapplication.database.CategoriaDAO
@@ -27,6 +29,24 @@ class AppViewModel(
     var nomeUsuario = mutableStateOf(prefs.getNomeUsuario())
         private set
 
+<<<<<<< Updated upstream
+=======
+    var carregando by mutableStateOf(false)
+        private set
+
+    var mensagem by mutableStateOf<String?>(null)
+        private set
+
+    fun clearMensagem() {
+        mensagem = null
+    }
+
+    fun sair(onSucesso: () -> Unit = {}) {
+        logout()
+        onSucesso()
+    }
+
+>>>>>>> Stashed changes
     // ---------- Dados que as telas observam ----------
     var allTransacoes = mutableStateListOf<Transacao>()
         private set
@@ -78,6 +98,19 @@ class AppViewModel(
         criarCategoriasPadrao(id)
         iniciarSessao(novoUsuario.copy(id = id))
         return null
+<<<<<<< Updated upstream
+=======
+    }
+
+    fun cadastrar(nome: String, email: String, senha: String, onSuccess: () -> Unit) {
+        val erro = cadastrar(nome, email, senha, senha)
+        if (erro != null) {
+            mensagem = erro
+        } else {
+            mensagem = null
+            onSuccess()
+        }
+>>>>>>> Stashed changes
     }
 
     fun logout() {
