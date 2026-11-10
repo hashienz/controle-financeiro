@@ -32,7 +32,10 @@ class TransacaoDAO(private val dbHelper: DatabaseHelper) {
                     dataInMillis = cursor.getLong(cursor.getColumnIndexOrThrow("data")),
                     categoriaId = cursor.getLong(cursor.getColumnIndexOrThrow("categoria_id")),
                     efetivado = cursor.getInt(cursor.getColumnIndexOrThrow("efetivado")) == 1,
-                    usuarioId = cursor.getLong(cursor.getColumnIndexOrThrow("usuario_id"))
+                    usuarioId = cursor.getLong(cursor.getColumnIndexOrThrow("usuario_id")),
+                    localizacao = cursor.getColumnIndex("localizacao").let { idx ->
+                        if (idx >= 0) cursor.getString(idx) ?: "" else ""
+                    }
                 )
             )
         }
@@ -83,6 +86,7 @@ class TransacaoDAO(private val dbHelper: DatabaseHelper) {
             put("categoria_id", transacao.categoriaId)
             put("efetivado", if (transacao.efetivado) 1 else 0)
             put("usuario_id", transacao.usuarioId)
+            put("localizacao", transacao.localizacao)
         }
     }
 }

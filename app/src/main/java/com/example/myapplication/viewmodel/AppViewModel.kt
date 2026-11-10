@@ -7,6 +7,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.myapplication.api.CotacoesResponse
+import com.example.myapplication.api.RetrofitClient
 import com.example.myapplication.database.CategoriaDAO
 import com.example.myapplication.database.TransacaoDAO
 import com.example.myapplication.database.UsuarioDAO
@@ -14,6 +17,7 @@ import com.example.myapplication.localstorage.PreferenciasApp
 import com.example.myapplication.model.Categoria
 import com.example.myapplication.model.Transacao
 import com.example.myapplication.model.Usuario
+import kotlinx.coroutines.launch
 
 class AppViewModel(
     private val prefs: PreferenciasApp,
@@ -29,8 +33,6 @@ class AppViewModel(
     var nomeUsuario = mutableStateOf(prefs.getNomeUsuario())
         private set
 
-<<<<<<< Updated upstream
-=======
     var carregando by mutableStateOf(false)
         private set
 
@@ -46,7 +48,6 @@ class AppViewModel(
         onSucesso()
     }
 
->>>>>>> Stashed changes
     // ---------- Dados que as telas observam ----------
     var allTransacoes = mutableStateListOf<Transacao>()
         private set
@@ -56,6 +57,14 @@ class AppViewModel(
 
     // Transação escolhida para editar (null = criando uma nova)
     var transacaoEmEdicao = mutableStateOf<Transacao?>(null)
+        private set
+
+    // Cotações vindas da API (Retrofit)
+    var cotacoes by mutableStateOf<CotacoesResponse?>(null)
+        private set
+    var carregandoCotacoes by mutableStateOf(false)
+        private set
+    var erroCotacoes by mutableStateOf<String?>(null)
         private set
 
     // Totais calculados
@@ -98,8 +107,6 @@ class AppViewModel(
         criarCategoriasPadrao(id)
         iniciarSessao(novoUsuario.copy(id = id))
         return null
-<<<<<<< Updated upstream
-=======
     }
 
     fun cadastrar(nome: String, email: String, senha: String, onSuccess: () -> Unit) {
@@ -110,7 +117,6 @@ class AppViewModel(
             mensagem = null
             onSuccess()
         }
->>>>>>> Stashed changes
     }
 
     fun logout() {
@@ -136,12 +142,12 @@ class AppViewModel(
             Triple("Lazer", "🎮", "#4CAF50"),
             Triple("Moradia", "🏠", "#9C27B0")
         )
-        for (item in padroes) {
+        for ((nome, icone, cor) in padroes) {
             categoriaDAO.inserir(
                 Categoria(
-                    nome = item.first,
-                    iconeNome = item.second,
-                    corHex = item.third,
+                    nome = nome,
+                    iconeNome = icone,
+                    corHex = cor,
                     limiteMensal = 500.0,
                     usuarioId = usuarioId
                 )
@@ -156,6 +162,21 @@ class AppViewModel(
     fun carregarDados() {
         carregarCategorias()
         carregarTransacoes()
+        carregarCotacoes()
+    }
+
+    fun carregarCotacoes() {
+        viewModelScope.launch {
+            carregandoCotacoes = true
+            erroCotacoes = null
+            try {
+                cotacoes = RetrofitClient.api.buscarCotacoes()
+            } catch (_: Exception) {
+                erroCotacoes = "Não foi possível atualizar cotações"
+            } finally {
+                carregandoCotacoes = false
+            }
+        }
     }
 
     fun carregarCategorias() {
@@ -181,7 +202,14 @@ class AppViewModel(
         transacaoEmEdicao.value = transacao
     }
 
-    fun addTransacao(descricao: String, valor: Double, tipo: String, categoriaId: Long, efetivado: Boolean) {
+    fun addTransacao(
+        descricao: String,
+        valor: Double,
+        tipo: String,
+        categoriaId: Long,
+        efetivado: Boolean,
+        localizacao: String = ""
+    ) {
         val novaTransacao = Transacao(
             descricao = descricao,
             valor = valor,
@@ -189,7 +217,8 @@ class AppViewModel(
             dataInMillis = System.currentTimeMillis(),
             categoriaId = categoriaId,
             efetivado = efetivado,
-            usuarioId = prefs.getUsuarioId()
+            usuarioId = prefs.getUsuarioId(),
+            localizacao = localizacao
         )
         transacaoDAO.inserir(novaTransacao)
         carregarTransacoes()
@@ -244,11 +273,11 @@ class AppViewModel(
         var despEfetivadas = 0.0
         var despPrevistas = 0.0
 
-        for (t in allTransacoes) {
-            if (t.tipo == "RECEITA") {
-                if (t.efetivado) recEfetivadas += t.valor else recPrevistas += t.valor
-            } else if (t.tipo == "DESPESA") {
-                if (t.efetivado) despEfetivadas += t.valor else despPrevistas += t.valor
+        for ((_, _, valor, tipo, _, _, efetivado) in allTransacoes) {
+            if (tipo == "RECEITA") {
+                if (efetivado) recEfetivadas += valor else recPrevistas += valor
+            } else if (tipo == "DESPESA") {
+                if (efetivado) despEfetivadas += valor else despPrevistas += valor
             }
         }
 
@@ -260,9 +289,9 @@ class AppViewModel(
 
     fun getGastoDaCategoria(categoriaId: Long): Double {
         var gastoTotal = 0.0
-        for (t in allTransacoes) {
-            if (t.categoriaId == categoriaId && t.tipo == "DESPESA") {
-                gastoTotal += t.valor
+        for ((_, _, valor, tipo, _, catId) in allTransacoes) {
+            if (catId == categoriaId && tipo == "DESPESA") {
+                gastoTotal += valor
             }
         }
         return gastoTotal

@@ -1,5 +1,12 @@
 package com.example.myapplication.view
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,34 +20,57 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.myapplication.model.Categoria
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
+    val context = LocalContext.current
     var descricao by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("DESPESA") }
     var selectedCategoriaId by remember { mutableStateOf<Long?>(null) }
     var efetivado by remember { mutableStateOf(true) }
+    var localizacao by remember { mutableStateOf("") }
+    var obtendoLocal by remember { mutableStateOf(false) }
 
     // Se veio uma transação selecionada, a tela está em modo ALTERAR
     val transacaoEmEdicao = viewModel.transacaoEmEdicao.value
     val modoEdicao = transacaoEmEdicao != null
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { concedida ->
+        if (concedida) {
+            obtendoLocal = true
+            obterLocalAtual(context) { resultado ->
+                localizacao = resultado
+                obtendoLocal = false
+            }
+        } else {
+            localizacao = "Permissão de localização negada"
+        }
+    }
 
     // Ao abrir: carrega as categorias do banco e, se for edição, preenche os campos
     LaunchedEffect(Unit) {
@@ -51,6 +81,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
             tipo = transacaoEmEdicao.tipo
             selectedCategoriaId = transacaoEmEdicao.categoriaId
             efetivado = transacaoEmEdicao.efetivado
+            localizacao = transacaoEmEdicao.localizacao
         }
     }
 
@@ -149,6 +180,61 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                 ),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            // Recurso Nativo: Localização do celular
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LumeSurface)
+                    .border(1.dp, LumeBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = LumeAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (localizacao.isNotBlank()) localizacao else "Nenhum local registrado",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (localizacao.isNotBlank()) LumeTextPrimary else LumeTextSecondary
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        val temPermissao = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (temPermissao) {
+                            obtendoLocal = true
+                            obterLocalAtual(context) { resultado ->
+                                localizacao = resultado
+                                obtendoLocal = false
+                            }
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        }
+                    },
+                    enabled = !obtendoLocal
+                ) {
+                    Text(
+                        text = if (obtendoLocal) "Buscando..." else "Usar GPS",
+                        color = LumeAccent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
             
             // Switch Efetivado
             Row(
@@ -174,7 +260,7 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                 )
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
-                    modifier = Modifier.height(200.dp),
+                    modifier = Modifier.height(160.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -202,12 +288,20 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
                                     valor = v,
                                     tipo = tipo,
                                     categoriaId = selectedCategoriaId!!,
-                                    efetivado = efetivado
+                                    efetivado = efetivado,
+                                    localizacao = localizacao
                                 )
                             )
                         } else {
                             // CREATE
-                            viewModel.addTransacao(descricao, v, tipo, selectedCategoriaId!!, efetivado)
+                            viewModel.addTransacao(
+                                descricao = descricao,
+                                valor = v,
+                                tipo = tipo,
+                                categoriaId = selectedCategoriaId!!,
+                                efetivado = efetivado,
+                                localizacao = localizacao
+                            )
                         }
                         viewModel.selecionarTransacaoParaEditar(null)
                         navController.popBackStack()
@@ -265,3 +359,35 @@ fun CategoryGridItem(categoria: Categoria, isSelected: Boolean, onClick: () -> U
         )
     }
 }
+
+@SuppressLint("MissingPermission")
+private fun obterLocalAtual(context: Context, onResult: (String) -> Unit) {
+    val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+    fusedClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+        .addOnSuccessListener { location ->
+            if (location != null) {
+                val endereco = try {
+                    @Suppress("DEPRECATION")
+                    val list = Geocoder(context, Locale("pt", "BR"))
+                        .getFromLocation(location.latitude, location.longitude, 1)
+                    val addr = list?.firstOrNull()
+                    val cidade = addr?.locality ?: addr?.subAdminArea
+                    val bairro = addr?.subLocality
+                    when {
+                        !bairro.isNullOrBlank() && !cidade.isNullOrBlank() -> "$bairro, $cidade"
+                        !cidade.isNullOrBlank() -> cidade
+                        else -> String.format(Locale.US, "%.4f, %.4f", location.latitude, location.longitude)
+                    }
+                } catch (_: Exception) {
+                    String.format(Locale.US, "%.4f, %.4f", location.latitude, location.longitude)
+                }
+                onResult(endereco)
+            } else {
+                onResult("Localização indisponível (ative o GPS)")
+            }
+        }
+        .addOnFailureListener {
+            onResult("Erro ao obter localização")
+        }
+}
+

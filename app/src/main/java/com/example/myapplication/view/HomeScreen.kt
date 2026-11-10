@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.myapplication.api.CotacoesResponse
 import com.example.myapplication.model.Transacao
 import com.example.myapplication.navigation.Screen
 import com.example.myapplication.theme.*
@@ -116,6 +117,15 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+
+            item {
+                CotacoesLumeCard(
+                    cotacoes = viewModel.cotacoes,
+                    carregando = viewModel.carregandoCotacoes,
+                    erro = viewModel.erroCotacoes,
+                    onRefresh = { viewModel.carregarCotacoes() }
+                )
             }
 
             item {
@@ -282,6 +292,25 @@ fun TransactionLumeItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = LumeTextSecondary
                 )
+                if (transacao.localizacao.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = LumeAccent,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = transacao.localizacao,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LumeTextSecondary
+                        )
+                    }
+                }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -309,3 +338,106 @@ fun formatCurrency(amount: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
     return format.format(amount)
 }
+
+@Composable
+fun CotacoesLumeCard(
+    cotacoes: CotacoesResponse?,
+    carregando: Boolean,
+    erro: String?,
+    onRefresh: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(LumeSurface)
+            .border(1.dp, LumeBorder, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "COTAÇÕES EM TEMPO REAL (API)",
+                style = MaterialTheme.typography.labelSmall,
+                color = LumeTextSecondary,
+                letterSpacing = 1.sp
+            )
+            IconButton(onClick = onRefresh, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "Atualizar cotações",
+                    tint = LumeAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        when {
+            carregando -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = LumeAccent,
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+            erro != null && cotacoes == null -> {
+                Text(
+                    text = erro,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = LumeError
+                )
+            }
+            cotacoes != null -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    MoedaItem("USD", cotacoes.USDBRL?.bid, cotacoes.USDBRL?.pctChange)
+                    MoedaItem("EUR", cotacoes.EURBRL?.bid, cotacoes.EURBRL?.pctChange)
+                    MoedaItem("BTC", cotacoes.BTCBRL?.bid, cotacoes.BTCBRL?.pctChange)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MoedaItem(codigo: String, valorStr: String?, variacaoStr: String?) {
+    val valor = valorStr?.toDoubleOrNull() ?: 0.0
+    val variacao = variacaoStr?.toDoubleOrNull() ?: 0.0
+    val corVariacao = if (variacao >= 0) LumeAccent else LumeError
+    val sinal = if (variacao >= 0) "+" else ""
+
+    Column {
+        Text(
+            text = codigo,
+            style = MaterialTheme.typography.labelSmall,
+            color = LumeTextSecondary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = formatCurrency(valor),
+            style = MaterialTheme.typography.bodyMedium,
+            color = LumeTextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "$sinal${String.format(Locale("pt", "BR"), "%.2f", variacao)}%",
+            style = MaterialTheme.typography.labelSmall,
+            color = corVariacao
+        )
+    }
+}
+

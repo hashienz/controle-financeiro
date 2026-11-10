@@ -10,7 +10,7 @@ class DatabaseHelper(context: Context) :
 
     companion object {
         const val NOME_BANCO = "lume.db"
-        const val VERSAO_BANCO = 1
+        const val VERSAO_BANCO = 2
 
         const val TABELA_USUARIO = "usuario"
         const val TABELA_CATEGORIA = "categoria"
@@ -54,7 +54,8 @@ class DatabaseHelper(context: Context) :
                 data INTEGER NOT NULL,
                 categoria_id INTEGER NOT NULL,
                 efetivado INTEGER NOT NULL DEFAULT 1,
-                usuario_id INTEGER NOT NULL
+                usuario_id INTEGER NOT NULL,
+                localizacao TEXT NOT NULL DEFAULT ''
             )
             """
         )
@@ -62,9 +63,8 @@ class DatabaseHelper(context: Context) :
 
     // Chamado quando VERSAO_BANCO aumenta: apaga e recria as tabelas
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABELA_TRANSACAO")
-        db.execSQL("DROP TABLE IF EXISTS $TABELA_CATEGORIA")
-        db.execSQL("DROP TABLE IF EXISTS $TABELA_USUARIO")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE $TABELA_TRANSACAO ADD COLUMN localizacao TEXT NOT NULL DEFAULT ''")
+        }
     }
 }

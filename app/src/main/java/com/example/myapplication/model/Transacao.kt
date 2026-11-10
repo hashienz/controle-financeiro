@@ -8,5 +8,6 @@ data class Transacao(
     val dataInMillis: Long,
     val categoriaId: Long,
     val efetivado: Boolean = true,
-    val usuarioId: Long = 0
+    val usuarioId: Long = 0,
+    val localizacao: String = ""
 )
