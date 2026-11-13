@@ -77,6 +77,17 @@ class TransacaoDAO(private val dbHelper: DatabaseHelper) {
         return linhas
     }
 
+    fun deletarPorUsuario(usuarioId: Long): Int {
+        val db = dbHelper.writableDatabase
+        val linhas = db.delete(
+            DatabaseHelper.TABELA_TRANSACAO,
+            "usuario_id = ?",
+            arrayOf(usuarioId.toString())
+        )
+        db.close()
+        return linhas
+    }
+
     private fun toContentValues(transacao: Transacao): ContentValues {
         return ContentValues().apply {
             put("descricao", transacao.descricao)

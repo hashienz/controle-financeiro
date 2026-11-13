@@ -16,34 +16,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.example.myapplication.theme.LumeBg
 import com.example.myapplication.theme.LumeSurface
 import com.example.myapplication.view.*
 import com.example.myapplication.viewmodel.AppViewModel
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Auth : Screen("auth", "Auth", Icons.Default.Info)
-    object Cadastro : Screen("cadastro", "Cadastro", Icons.Default.Info)
-    object Dashboard : Screen("dashboard", "Início", Icons.Default.Home)
-    object Extrato : Screen("extrato", "Extrato", Icons.Default.List)
-    object Budget : Screen("budget", "Metas", Icons.Default.CheckCircle)
-    object Reports : Screen("reports", "Gráficos", Icons.Default.Info)
-    object TransactionForm : Screen("transaction_form", "Novo", Icons.Default.Add)
-}
-
 @Composable
 fun NavegacaoApp(viewModel: AppViewModel) {
     val navController = rememberNavController()
 
-    // Controle de sessão: se já existe usuário salvo, abre direto no Dashboard.
-    // O remember garante que a tela inicial é decidida uma vez só, ao abrir o app.
-    val telaInicial = remember {
-        if (viewModel.isUserLoggedIn.value) Screen.Dashboard.route else Screen.Auth.route
+    val telaInicial: Any = remember {
+        if (viewModel.isUserLoggedIn.value) Home else Login
     }
 
     NavHost(
@@ -51,35 +41,55 @@ fun NavegacaoApp(viewModel: AppViewModel) {
         startDestination = telaInicial,
         modifier = Modifier.background(LumeBg)
     ) {
-        // Login e Cadastro NÃO usam o MainScaffold, então o menu inferior não aparece
-        composable(Screen.Auth.route) {
+        composable<Login> {
             LoginScreen(viewModel = viewModel, navController = navController)
         }
-        composable(Screen.Cadastro.route) {
+        composable<Cadastro> {
             CadastroScreen(viewModel = viewModel, navController = navController)
         }
-        composable(Screen.Dashboard.route) {
+        composable<Secoes> {
+            SecoesScreen(
+                irFormulario = { navController.navigate(Formulario()) },
+                irExtrato = { navController.navigate(Extrato) },
+                irMetas = { navController.navigate(Metas) },
+                irGraficos = { navController.navigate(Graficos) }
+            )
+        }
+        composable<Home> {
             MainScaffold(navController = navController) {
                 HomeScreen(viewModel = viewModel, navController = navController)
             }
         }
-        composable(Screen.Extrato.route) {
+        composable<Extrato> {
             MainScaffold(navController = navController) {
                 ExtratoScreen(viewModel = viewModel, navController = navController)
             }
         }
-        composable(Screen.Budget.route) {
+        composable<Metas> {
             MainScaffold(navController = navController) {
                 MetasScreen(viewModel = viewModel)
             }
         }
-        composable(Screen.Reports.route) {
+        composable<Categorias> {
+            MainScaffold(navController = navController) {
+                CategoriasScreen(viewModel = viewModel)
+            }
+        }
+        composable<Graficos> {
             MainScaffold(navController = navController) {
                 GraficosScreen(viewModel = viewModel)
             }
         }
-        composable(Screen.TransactionForm.route) {
-            FormularioScreen(viewModel = viewModel, navController = navController)
+        composable<Formulario> { backStackEntry ->
+            val formulario = backStackEntry.toRoute<Formulario>()
+            FormularioScreen(
+                viewModel = viewModel,
+                navController = navController,
+                transacaoId = formulario.transacaoId
+            )
+        }
+        composable<Conta> {
+            ContaScreen(viewModel = viewModel, navController = navController)
         }
     }
 }
@@ -104,23 +114,31 @@ fun MainScaffold(
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
-        Screen.Dashboard,
-        Screen.Extrato,
-        Screen.Budget,
-        Screen.Reports
+        ItemNavegacao(Home, "Início", Icons.Default.Home),
+        ItemNavegacao(Extrato, "Extrato", Icons.Default.List),
+        ItemNavegacao(Metas, "Metas", Icons.Default.CheckCircle),
+        ItemNavegacao(Categorias, "Categorias", Icons.Default.Info),
+        ItemNavegacao(Graficos, "Gráficos", Icons.Default.Info)
     )
     NavigationBar(
         containerColor = LumeBg,
         tonalElevation = 0.dp
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navBackStackEntry?.destination?.route
+        val destination = navBackStackEntry?.destination
         
-        items.forEach { screen ->
+        items.forEach { item ->
+            val selecionado = when (item.rota) {
+                Home -> destination?.hasRoute<Home>() == true
+                Extrato -> destination?.hasRoute<Extrato>() == true
+                Metas -> destination?.hasRoute<Metas>() == true
+                Categorias -> destination?.hasRoute<Categorias>() == true
+                else -> destination?.hasRoute<Graficos>() == true
+            }
             NavigationBarItem(
-                icon = { Icon(screen.icon, contentDescription = screen.title) },
-                label = { Text(screen.title) },
-                selected = currentRoute == screen.route,
+                icon = { Icon(item.icone, contentDescription = item.titulo) },
+                label = { Text(item.titulo) },
+                selected = selecionado,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -129,8 +147,8 @@ fun BottomNavigationBar(navController: NavHostController) {
                     indicatorColor = LumeSurface
                 ),
                 onClick = {
-                    if (currentRoute != screen.route) {
-                        navController.navigate(screen.route) {
+                    if (!selecionado) {
+                        navController.navigate(item.rota) {
                             popUpTo(navController.graph.startDestinationId) {
                                 saveState = true
                             }
@@ -142,4 +160,11 @@ fun BottomNavigationBar(navController: NavHostController) {
             )
         }
     }
+
 }
+
+private data class ItemNavegacao(
+    val rota: Any,
+    val titulo: String,
+    val icone: ImageVector
+)

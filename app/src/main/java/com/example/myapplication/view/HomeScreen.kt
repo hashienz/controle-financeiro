@@ -25,7 +25,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.myapplication.api.CotacoesResponse
 import com.example.myapplication.model.Transacao
-import com.example.myapplication.navigation.Screen
+import com.example.myapplication.navigation.Conta
+import com.example.myapplication.navigation.Formulario
+import com.example.myapplication.navigation.Home
+import com.example.myapplication.navigation.Login
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 import java.text.NumberFormat
@@ -49,7 +52,7 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
             FloatingActionButton(
                 onClick = {
                     viewModel.selecionarTransacaoParaEditar(null) // modo "nova transação"
-                    navController.navigate(Screen.TransactionForm.route)
+                    navController.navigate(Formulario())
                 },
                 containerColor = LumeAccent,
                 contentColor = LumeBg,
@@ -80,10 +83,17 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
                         fontWeight = FontWeight.Bold,
                         color = LumeTextPrimary
                     )
+                    IconButton(onClick = { navController.navigate(Conta) }) {
+                        Icon(
+                            Icons.Default.AccountCircle,
+                            contentDescription = "Minha conta",
+                            tint = LumeTextSecondary
+                        )
+                    }
                     IconButton(onClick = {
                         viewModel.logout()
-                        navController.navigate(Screen.Auth.route) {
-                            popUpTo(navController.graph.id) { inclusive = true }
+                        navController.navigate(Login) {
+                            popUpTo<Home> { inclusive = true }
                         }
                     }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sair", tint = LumeTextSecondary)
@@ -160,7 +170,7 @@ fun HomeScreen(viewModel: AppViewModel, navController: NavController) {
                         showValues,
                         onClick = {
                             viewModel.selecionarTransacaoParaEditar(transacao)
-                            navController.navigate(Screen.TransactionForm.route)
+                            navController.navigate(Formulario(transacao.id))
                         }
                     )
                 }

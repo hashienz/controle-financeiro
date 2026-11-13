@@ -12,7 +12,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.myapplication.navigation.Screen
+import com.example.myapplication.navigation.Cadastro
+import com.example.myapplication.navigation.Home
+import com.example.myapplication.navigation.Login
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
@@ -90,8 +92,8 @@ fun LoginScreen(viewModel: AppViewModel, navController: NavController) {
             onClick = {
                 erro = viewModel.login(email, password)
                 if (erro == null) {
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    navController.navigate(Home) {
+                        popUpTo<Login> { inclusive = true }
                     }
                 }
             },
@@ -105,7 +107,7 @@ fun LoginScreen(viewModel: AppViewModel, navController: NavController) {
         }
 
         TextButton(
-            onClick = { navController.navigate(Screen.Cadastro.route) },
+            onClick = { navController.navigate(Cadastro) },
             modifier = Modifier.padding(top = 16.dp)
         ) {
             Text(

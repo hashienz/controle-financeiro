@@ -11,10 +11,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.myapplication.api.CotacoesResponse
 import com.example.myapplication.api.RetrofitClient
 import com.example.myapplication.database.CategoriaDAO
+import com.example.myapplication.database.MetaDAO
 import com.example.myapplication.database.TransacaoDAO
 import com.example.myapplication.database.UsuarioDAO
 import com.example.myapplication.localstorage.PreferenciasApp
 import com.example.myapplication.model.Categoria
+import com.example.myapplication.model.Meta
 import com.example.myapplication.model.Transacao
 import com.example.myapplication.model.Usuario
 import kotlinx.coroutines.launch
@@ -23,7 +25,8 @@ class AppViewModel(
     private val prefs: PreferenciasApp,
     private val usuarioDAO: UsuarioDAO,
     private val categoriaDAO: CategoriaDAO,
-    private val transacaoDAO: TransacaoDAO
+    private val transacaoDAO: TransacaoDAO,
+    private val metaDAO: MetaDAO
 ) : ViewModel() {
 
     // ---------- Sessão ----------
@@ -31,6 +34,9 @@ class AppViewModel(
         private set
 
     var nomeUsuario = mutableStateOf(prefs.getNomeUsuario())
+        private set
+
+    var usuarioAtual = mutableStateOf<Usuario?>(null)
         private set
 
     var carregando by mutableStateOf(false)
@@ -53,6 +59,9 @@ class AppViewModel(
         private set
 
     var allCategorias = mutableStateListOf<Categoria>()
+        private set
+
+    var allMetas = mutableStateListOf<Meta>()
         private set
 
     // Transação escolhida para editar (null = criando uma nova)
@@ -123,12 +132,16 @@ class AppViewModel(
         prefs.limparSessao()
         allTransacoes.clear()
         allCategorias.clear()
+        allMetas.clear()
+        transacaoEmEdicao.value = null
+        usuarioAtual.value = null
         nomeUsuario.value = ""
         isUserLoggedIn.value = false
     }
 
     private fun iniciarSessao(usuario: Usuario) {
         prefs.salvarSessao(usuario.id, usuario.nome)
+        usuarioAtual.value = usuario
         nomeUsuario.value = usuario.nome
         isUserLoggedIn.value = true
         carregarDados()
@@ -162,6 +175,7 @@ class AppViewModel(
     fun carregarDados() {
         carregarCategorias()
         carregarTransacoes()
+        carregarMetas()
         carregarCotacoes()
     }
 
@@ -184,6 +198,19 @@ class AppViewModel(
         if (usuarioId == -1L) return
         allCategorias.clear()
         allCategorias.addAll(categoriaDAO.listarPorUsuario(usuarioId))
+    }
+
+    fun carregarMetas() {
+        val usuarioId = prefs.getUsuarioId()
+        if (usuarioId == -1L) return
+        allMetas.clear()
+        allMetas.addAll(metaDAO.listarPorUsuario(usuarioId))
+    }
+
+    fun carregarUsuario() {
+        val usuarioId = prefs.getUsuarioId()
+        if (usuarioId == -1L) return
+        usuarioAtual.value = usuarioDAO.buscarPorId(usuarioId)
     }
 
     fun carregarTransacoes() {
@@ -264,6 +291,78 @@ class AppViewModel(
     }
 
     // =====================================================
+    // CRUD 3 - META FINANCEIRA
+    // =====================================================
+
+    fun addMeta(titulo: String, valorAlvo: Double, valorAtual: Double) {
+        metaDAO.inserir(
+            Meta(
+                titulo = titulo.trim(),
+                valorAlvo = valorAlvo,
+                valorAtual = valorAtual,
+                usuarioId = prefs.getUsuarioId()
+            )
+        )
+        carregarMetas()
+    }
+
+    fun updateMeta(meta: Meta) {
+        metaDAO.atualizar(meta)
+        carregarMetas()
+    }
+
+    fun deleteMeta(meta: Meta) {
+        metaDAO.deletar(meta.id, prefs.getUsuarioId())
+        carregarMetas()
+    }
+
+    // =====================================================
+    // CRUD 4 - USUÁRIO
+    // =====================================================
+
+    fun atualizarUsuario(nome: String, email: String, senha: String): String? {
+        val usuario = usuarioAtual.value ?: usuarioDAO.buscarPorId(prefs.getUsuarioId())
+            ?: return "Não foi possível carregar a conta"
+        val nomeNormalizado = nome.trim()
+        val emailNormalizado = email.trim()
+        if (nomeNormalizado.isBlank() || emailNormalizado.isBlank()) {
+            return "Preencha nome e e-mail"
+        }
+        if (!emailNormalizado.contains("@")) return "E-mail inválido"
+        if (senha.isNotBlank() && senha.length < 4) {
+            return "A senha deve ter pelo menos 4 caracteres"
+        }
+        val emailExistente = usuarioDAO.buscarPorEmail(emailNormalizado)
+        if (emailExistente != null && emailExistente.id != usuario.id) {
+            return "E-mail já cadastrado"
+        }
+
+        val atualizado = usuario.copy(
+            nome = nomeNormalizado,
+            email = emailNormalizado,
+            senha = senha.ifBlank { usuario.senha }
+        )
+        if (usuarioDAO.atualizar(atualizado) == 0) return "Não foi possível atualizar a conta"
+
+        usuarioAtual.value = atualizado
+        prefs.salvarSessao(atualizado.id, atualizado.nome)
+        nomeUsuario.value = atualizado.nome
+        return null
+    }
+
+    fun excluirConta(): Boolean {
+        val usuarioId = prefs.getUsuarioId()
+        if (usuarioId == -1L) return false
+
+        transacaoDAO.deletarPorUsuario(usuarioId)
+        categoriaDAO.deletarPorUsuario(usuarioId)
+        metaDAO.deletarPorUsuario(usuarioId)
+        if (usuarioDAO.deletar(usuarioId) == 0) return false
+        logout()
+        return true
+    }
+
+    // =====================================================
     // CÁLCULOS
     // =====================================================
 
@@ -306,12 +405,13 @@ class AppViewModelFactory(
     private val prefs: PreferenciasApp,
     private val usuarioDAO: UsuarioDAO,
     private val categoriaDAO: CategoriaDAO,
-    private val transacaoDAO: TransacaoDAO
+    private val transacaoDAO: TransacaoDAO,
+    private val metaDAO: MetaDAO
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return AppViewModel(prefs, usuarioDAO, categoriaDAO, transacaoDAO) as T
+            return AppViewModel(prefs, usuarioDAO, categoriaDAO, transacaoDAO, metaDAO) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

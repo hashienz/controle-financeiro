@@ -61,6 +61,17 @@ class CategoriaDAO(private val dbHelper: DatabaseHelper) {
         return linhas
     }
 
+    fun deletarPorUsuario(usuarioId: Long): Int {
+        val db = dbHelper.writableDatabase
+        val linhas = db.delete(
+            DatabaseHelper.TABELA_CATEGORIA,
+            "usuario_id = ?",
+            arrayOf(usuarioId.toString())
+        )
+        db.close()
+        return linhas
+    }
+
     private fun toContentValues(categoria: Categoria): ContentValues {
         return ContentValues().apply {
             put("nome", categoria.nome)

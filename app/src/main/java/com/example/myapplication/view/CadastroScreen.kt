@@ -13,7 +13,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.myapplication.navigation.Screen
+import com.example.myapplication.navigation.Home
+import com.example.myapplication.navigation.Login
 import com.example.myapplication.theme.*
 import com.example.myapplication.viewmodel.AppViewModel
 
@@ -68,8 +69,8 @@ fun CadastroScreen(viewModel: AppViewModel, navController: NavController) {
                 erro = viewModel.cadastrar(nome, email, senha, confirmarSenha)
                 if (erro == null) {
                     // Cadastro já inicia a sessão: vai direto para o Dashboard
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    navController.navigate(Home) {
+                        popUpTo<Login> { inclusive = true }
                     }
                 }
             },

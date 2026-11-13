@@ -44,7 +44,11 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
+fun FormularioScreen(
+    viewModel: AppViewModel,
+    navController: NavController,
+    transacaoId: Long? = null
+) {
     val context = LocalContext.current
     var descricao by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
@@ -55,7 +59,9 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
     var obtendoLocal by remember { mutableStateOf(false) }
 
     // Se veio uma transação selecionada, a tela está em modo ALTERAR
-    val transacaoEmEdicao = viewModel.transacaoEmEdicao.value
+    val transacaoEmEdicao = transacaoId?.let { id ->
+        viewModel.allTransacoes.firstOrNull { it.id == id }
+    } ?: viewModel.transacaoEmEdicao.value
     val modoEdicao = transacaoEmEdicao != null
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -75,6 +81,10 @@ fun FormularioScreen(viewModel: AppViewModel, navController: NavController) {
     // Ao abrir: carrega as categorias do banco e, se for edição, preenche os campos
     LaunchedEffect(Unit) {
         viewModel.carregarCategorias()
+        if (transacaoId != null) viewModel.carregarTransacoes()
+    }
+
+    LaunchedEffect(transacaoEmEdicao?.id) {
         if (transacaoEmEdicao != null) {
             descricao = transacaoEmEdicao.descricao
             valor = transacaoEmEdicao.valor.toString()

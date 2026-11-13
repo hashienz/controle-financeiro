@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.myapplication.model.Transacao
-import com.example.myapplication.navigation.Screen
+import com.example.myapplication.navigation.Formulario
 import com.example.myapplication.viewmodel.AppViewModel
 import com.example.myapplication.theme.*
 import java.text.SimpleDateFormat
@@ -119,7 +119,7 @@ fun ExtratoScreen(viewModel: AppViewModel, navController: NavController) {
                             showValues = true,
                             onClick = {
                                 viewModel.selecionarTransacaoParaEditar(transacao)
-                                navController.navigate(Screen.TransactionForm.route)
+                                navController.navigate(Formulario(transacao.id))
                             },
                             onDelete = { transacaoParaExcluir = transacao }
                         )

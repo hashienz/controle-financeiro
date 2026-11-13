@@ -10,11 +10,12 @@ class DatabaseHelper(context: Context) :
 
     companion object {
         const val NOME_BANCO = "lume.db"
-        const val VERSAO_BANCO = 2
+        const val VERSAO_BANCO = 3
 
         const val TABELA_USUARIO = "usuario"
         const val TABELA_CATEGORIA = "categoria"
         const val TABELA_TRANSACAO = "transacao"
+        const val TABELA_META = "meta"
     }
 
     // Chamado só na primeira vez que o banco é aberto: cria as tabelas
@@ -59,12 +60,31 @@ class DatabaseHelper(context: Context) :
             )
             """
         )
+
+        criarTabelaMeta(db)
     }
 
-    // Chamado quando VERSAO_BANCO aumenta: apaga e recria as tabelas
+    // Chamado quando VERSAO_BANCO aumenta: aplica migrações sem apagar os dados
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE $TABELA_TRANSACAO ADD COLUMN localizacao TEXT NOT NULL DEFAULT ''")
         }
+        if (oldVersion < 3) {
+            criarTabelaMeta(db)
+        }
+    }
+
+    private fun criarTabelaMeta(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE $TABELA_META (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                valor_alvo REAL NOT NULL,
+                valor_atual REAL NOT NULL DEFAULT 0,
+                usuario_id INTEGER NOT NULL
+            )
+            """
+        )
     }
 }

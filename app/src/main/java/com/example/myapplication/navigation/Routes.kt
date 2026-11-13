@@ -21,6 +21,12 @@ data object Extrato
 data object Metas
 
 @Serializable
+data object Categorias
+
+@Serializable
+data object Conta
+
+@Serializable
 data object Graficos
 
 @Serializable

@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.example.myapplication.database.CategoriaDAO
 import com.example.myapplication.database.DatabaseHelper
+import com.example.myapplication.database.MetaDAO
 import com.example.myapplication.database.TransacaoDAO
 import com.example.myapplication.database.UsuarioDAO
 import com.example.myapplication.localstorage.PreferenciasApp
@@ -26,7 +27,8 @@ class MainActivity : ComponentActivity() {
             prefs,
             UsuarioDAO(dbHelper),
             CategoriaDAO(dbHelper),
-            TransacaoDAO(dbHelper)
+            TransacaoDAO(dbHelper),
+            MetaDAO(dbHelper)
         )
         val viewModel = ViewModelProvider(this, factory)[AppViewModel::class.java]
 
