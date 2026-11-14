@@ -14,7 +14,6 @@ import com.example.myapplication.database.CategoriaDAO
 import com.example.myapplication.database.MetaDAO
 import com.example.myapplication.database.TransacaoDAO
 import com.example.myapplication.database.UsuarioDAO
-import com.example.myapplication.localstorage.PreferenciasApp
 import com.example.myapplication.model.Categoria
 import com.example.myapplication.model.Meta
 import com.example.myapplication.model.Transacao
@@ -22,18 +21,21 @@ import com.example.myapplication.model.Usuario
 import kotlinx.coroutines.launch
 
 class AppViewModel(
-    private val prefs: PreferenciasApp,
     private val usuarioDAO: UsuarioDAO,
     private val categoriaDAO: CategoriaDAO,
     private val transacaoDAO: TransacaoDAO,
     private val metaDAO: MetaDAO
 ) : ViewModel() {
 
-    // ---------- Sessão ----------
-    var isUserLoggedIn = mutableStateOf(prefs.isLoggedIn())
+    // ---------- Sessão em Memória ----------
+    private var usuarioIdLogado: Long = -1L
+
+    private fun getUsuarioId(): Long = usuarioIdLogado
+
+    var isUserLoggedIn = mutableStateOf(false)
         private set
 
-    var nomeUsuario = mutableStateOf(prefs.getNomeUsuario())
+    var nomeUsuario = mutableStateOf("")
         private set
 
     var usuarioAtual = mutableStateOf<Usuario?>(null)
@@ -129,7 +131,7 @@ class AppViewModel(
     }
 
     fun logout() {
-        prefs.limparSessao()
+        usuarioIdLogado = -1L
         allTransacoes.clear()
         allCategorias.clear()
         allMetas.clear()
@@ -140,7 +142,7 @@ class AppViewModel(
     }
 
     private fun iniciarSessao(usuario: Usuario) {
-        prefs.salvarSessao(usuario.id, usuario.nome)
+        usuarioIdLogado = usuario.id
         usuarioAtual.value = usuario
         nomeUsuario.value = usuario.nome
         isUserLoggedIn.value = true
@@ -194,27 +196,27 @@ class AppViewModel(
     }
 
     fun carregarCategorias() {
-        val usuarioId = prefs.getUsuarioId()
+        val usuarioId = getUsuarioId()
         if (usuarioId == -1L) return
         allCategorias.clear()
         allCategorias.addAll(categoriaDAO.listarPorUsuario(usuarioId))
     }
 
     fun carregarMetas() {
-        val usuarioId = prefs.getUsuarioId()
+        val usuarioId = getUsuarioId()
         if (usuarioId == -1L) return
         allMetas.clear()
         allMetas.addAll(metaDAO.listarPorUsuario(usuarioId))
     }
 
     fun carregarUsuario() {
-        val usuarioId = prefs.getUsuarioId()
+        val usuarioId = getUsuarioId()
         if (usuarioId == -1L) return
         usuarioAtual.value = usuarioDAO.buscarPorId(usuarioId)
     }
 
     fun carregarTransacoes() {
-        val usuarioId = prefs.getUsuarioId()
+        val usuarioId = getUsuarioId()
         if (usuarioId == -1L) return
         allTransacoes.clear()
         allTransacoes.addAll(transacaoDAO.listarPorUsuario(usuarioId))
@@ -244,7 +246,7 @@ class AppViewModel(
             dataInMillis = System.currentTimeMillis(),
             categoriaId = categoriaId,
             efetivado = efetivado,
-            usuarioId = prefs.getUsuarioId(),
+            usuarioId = getUsuarioId(),
             localizacao = localizacao
         )
         transacaoDAO.inserir(novaTransacao)
@@ -272,7 +274,7 @@ class AppViewModel(
             iconeNome = icone.ifBlank { "📁" },
             corHex = cores[allCategorias.size % cores.size],
             limiteMensal = limite,
-            usuarioId = prefs.getUsuarioId()
+            usuarioId = getUsuarioId()
         )
         categoriaDAO.inserir(novaCategoria)
         carregarCategorias()
@@ -300,7 +302,7 @@ class AppViewModel(
                 titulo = titulo.trim(),
                 valorAlvo = valorAlvo,
                 valorAtual = valorAtual,
-                usuarioId = prefs.getUsuarioId()
+                usuarioId = getUsuarioId()
             )
         )
         carregarMetas()
@@ -312,7 +314,7 @@ class AppViewModel(
     }
 
     fun deleteMeta(meta: Meta) {
-        metaDAO.deletar(meta.id, prefs.getUsuarioId())
+        metaDAO.deletar(meta.id, getUsuarioId())
         carregarMetas()
     }
 
@@ -321,7 +323,7 @@ class AppViewModel(
     // =====================================================
 
     fun atualizarUsuario(nome: String, email: String, senha: String): String? {
-        val usuario = usuarioAtual.value ?: usuarioDAO.buscarPorId(prefs.getUsuarioId())
+        val usuario = usuarioAtual.value ?: usuarioDAO.buscarPorId(getUsuarioId())
             ?: return "Não foi possível carregar a conta"
         val nomeNormalizado = nome.trim()
         val emailNormalizado = email.trim()
@@ -345,13 +347,12 @@ class AppViewModel(
         if (usuarioDAO.atualizar(atualizado) == 0) return "Não foi possível atualizar a conta"
 
         usuarioAtual.value = atualizado
-        prefs.salvarSessao(atualizado.id, atualizado.nome)
         nomeUsuario.value = atualizado.nome
         return null
     }
 
     fun excluirConta(): Boolean {
-        val usuarioId = prefs.getUsuarioId()
+        val usuarioId = getUsuarioId()
         if (usuarioId == -1L) return false
 
         transacaoDAO.deletarPorUsuario(usuarioId)
@@ -402,7 +403,6 @@ class AppViewModel(
 }
 
 class AppViewModelFactory(
-    private val prefs: PreferenciasApp,
     private val usuarioDAO: UsuarioDAO,
     private val categoriaDAO: CategoriaDAO,
     private val transacaoDAO: TransacaoDAO,
@@ -411,7 +411,7 @@ class AppViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return AppViewModel(prefs, usuarioDAO, categoriaDAO, transacaoDAO, metaDAO) as T
+            return AppViewModel(usuarioDAO, categoriaDAO, transacaoDAO, metaDAO) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

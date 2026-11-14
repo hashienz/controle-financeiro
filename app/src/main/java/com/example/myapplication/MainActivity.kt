@@ -10,7 +10,6 @@ import com.example.myapplication.database.DatabaseHelper
 import com.example.myapplication.database.MetaDAO
 import com.example.myapplication.database.TransacaoDAO
 import com.example.myapplication.database.UsuarioDAO
-import com.example.myapplication.localstorage.PreferenciasApp
 import com.example.myapplication.navigation.NavegacaoApp
 import com.example.myapplication.theme.MyApplicationTheme
 import com.example.myapplication.viewmodel.AppViewModel
@@ -20,11 +19,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // SharedPreferences (sessão) + Banco SQLite + ViewModel
-        val prefs = PreferenciasApp(applicationContext)
+        // Banco SQLite + ViewModel
         val dbHelper = DatabaseHelper(applicationContext)
         val factory = AppViewModelFactory(
-            prefs,
             UsuarioDAO(dbHelper),
             CategoriaDAO(dbHelper),
             TransacaoDAO(dbHelper),
